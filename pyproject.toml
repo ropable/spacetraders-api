@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "spacetraders-api"
+version = "0.1.0"
+description = "https://docs.spacetraders.io/quickstart/new-game"
+authors = ["Ashley Felton <ashley@ropable.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+packages = [{include = "spacetraders_api"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+requests = "^2.30.0"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+ipython = "^8.13.2"
+black = "^23.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
