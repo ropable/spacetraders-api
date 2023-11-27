@@ -18,15 +18,20 @@ class Ship(BaseModel):
     cargo: dict
     fuel: dict
 
-    @property
-    def waypoint_symbol(self) -> str:
-
-        return self.nav["waypointSymbol"]
-
     def get_waypoint(self, client):
         """Returns the waypoint where this ship is located.
         """
         return client.get_waypoint(self.nav["waypointSymbol"])
+
+    def in_range(self, client, waypoint) -> bool:
+        """Returns True/False if the passed-in waypoint is within range of this ship.
+        """
+        current_waypoint = self.get_waypoint(client)
+        distance = current_waypoint.distance(waypoint)
+        if self.fuel["current"] > distance:
+            return True
+        else:
+            return False
 
     def flight_mode(self, client, flight_mode: str):
         """Set the flight mode for this ship.
@@ -39,10 +44,15 @@ class Ship(BaseModel):
         }
         resp = client.patch(f"{client.api_url}/my/ships/{self.symbol}/nav", json=data)
         resp.raise_for_status()
-        return resp.json()["data"]
+        data = resp.json()["data"]
+        # Update the ship nav status.
+        self.nav = data["nav"]
+        return self.nav
 
     def navigate(self, client, waypoint):
-
+        """Navigate to the nominated waypoint, if within range.
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/c766b84253edc-navigate-ship
+        """
         if not self.nav["status"] == "IN_ORBIT":
             # Enter orbit first.
             self.orbit(client)
@@ -53,7 +63,11 @@ class Ship(BaseModel):
         try:
             resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/navigate", json=data)
             resp.raise_for_status()
-            return resp.json()["data"]
+            data = resp.json()["data"]
+            # Update the ship fuel and nav status.
+            self.fuel = data["fuel"]
+            self.nav = data["nav"]
+            return self.nav
         except:
             # If the destination is out of range, return the error payload.
             return resp.json()
@@ -84,7 +98,7 @@ class Ship(BaseModel):
         """
         # If not docked, do so first.
         if not self.nav["status"] == "DOCKED":
-            self.orbit(client)
+            self.dock(client)
 
         data = {
             "symbol": commodity,
@@ -103,6 +117,13 @@ class Ship(BaseModel):
             return resp.json()
 
     def refuel(self, client, units: int = None, from_cargo: bool = False):
+        """Refuel this ship from the local market. If not specifed, refuel to the maximum
+        fuel capacity.
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/1bfb58c5239dd-refuel-ship
+        """
+        # If not docked, do so first.
+        if not self.nav["status"] == "DOCKED":
+            self.dock(client)
 
         data = {"fromCargo": from_cargo}
         if units:
