@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+from humanize import naturaldelta
 from math import sqrt
 from pydantic import BaseModel, Field
 from typing import List, Any
@@ -17,6 +19,10 @@ class Ship(BaseModel):
     mounts: List[dict]
     cargo: dict
     fuel: dict
+
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return f"{cls} ({self.symbol}, {self.frame['symbol']}, {self.registration['role']})"
 
     def get_waypoint(self, client):
         """Returns the waypoint where this ship is located.
@@ -46,15 +52,15 @@ class Ship(BaseModel):
         resp.raise_for_status()
         data = resp.json()["data"]
         # Update the ship nav status.
-        self.nav = data["nav"]
+        self.nav = data
         return self.nav
 
     def navigate(self, client, waypoint):
         """Navigate to the nominated waypoint, if within range.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/c766b84253edc-navigate-ship
         """
+        # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
-            # Enter orbit first.
             self.orbit(client)
 
         data = {
@@ -67,6 +73,9 @@ class Ship(BaseModel):
             # Update the ship fuel and nav status.
             self.fuel = data["fuel"]
             self.nav = data["nav"]
+            now = datetime.now(timezone.utc)
+            arrival = datetime.fromisoformat(self.nav["route"]["arrival"])
+            print(f"Estimated arrival in {naturaldelta(arrival - now)}")
             return self.nav
         except:
             # If the destination is out of range, return the error payload.
@@ -141,10 +150,61 @@ class Ship(BaseModel):
             return resp.json()
 
     def survey(self, client):
-        pass
+        """
+        """
+        # If not in orbit, do so first.
+        if not self.nav["status"] == "IN_ORBIT":
+            self.orbit(client)
 
-    def extract(self, client):
-        pass
+        return
+
+    def extract(self, client, survey: dict = None):
+        """Extract resources from a waypoint into this ship.
+        Calling extract() with a full cargo bay will not cause an exception, but will not
+        extract any resources.
+
+        TODO:
+            - Accept survey in request body.
+
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/b3931d097608d-extract-resources
+        """
+        # If not in orbit, do so first.
+        if not self.nav["status"] == "IN_ORBIT":
+            print("Entering orbit")
+            self.orbit(client)
+
+        try:
+            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/extract")
+            resp.raise_for_status()
+            data = resp.json()["data"]
+            # Update the ship's cargo status.
+            self.cargo = data["cargo"]
+            # Print the cooldown expiry.
+            exp = data["cooldown"]["expiration"]
+            cooldown = datetime.fromisoformat(exp)
+            now = datetime.now(timezone.utc)
+            print(f"Ship cooldown ends in {naturaldelta(cooldown - now)} ({exp})")
+
+            return data["extraction"]
+        except:
+            # Cooldown errors.
+            return resp.json()
+
+    def find_market_imports(self, client, markets, exchange=False):
+        """Print markets that import goods for the cargo inventory of this ship, given a passed-in
+        list of market waypoints.
+        """
+        goods = [i["symbol"] for i in self.cargo["inventory"]]
+        origin = self.get_waypoint(client)
+        for m in markets:
+            if not exchange:
+                if any(good in m.imports for good in goods):
+                    d = m.distance(origin)
+                    print(m.symbol.ljust(12), m.type.ljust(19), "{:.2f}".format(d).ljust(6), ", ".join([i["symbol"] for i in m.market["imports"]]))
+            else:
+                if any(good in m.exchange for good in goods):
+                    d = m.distance(origin)
+                    print(m.symbol.ljust(12), m.type.ljust(19), "{:.2f}".format(d).ljust(6), ", ".join([i["symbol"] for i in m.market["exchange"]]))
 
 
 class WaypointTrait(BaseModel):
@@ -152,6 +212,10 @@ class WaypointTrait(BaseModel):
     symbol: str
     name: str
     description: str
+
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return f"{cls} ({self.symbol})"
 
 
 class Waypoint(BaseModel):
@@ -170,6 +234,10 @@ class Waypoint(BaseModel):
     is_under_construction: Any = None
     market: dict = None
     # TODO: market info age / expiry.
+
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return f"{cls} ({self.symbol}, {self.type})"
 
     @property
     def coords(self):
@@ -244,3 +312,7 @@ class System(BaseModel):
     waypoints: List
     factions: List
     waypoints_cached: bool = False
+
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return f"{cls} ({self.symbol})"
