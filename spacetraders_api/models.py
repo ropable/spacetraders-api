@@ -8,6 +8,7 @@ from typing import List, Any
 
 class Ship(BaseModel):
 
+    client: Any
     symbol: str
     registration: dict
     nav: dict
@@ -25,22 +26,31 @@ class Ship(BaseModel):
         cls = self.__class__.__name__
         return f"{cls} ({self.symbol}, {self.frame['symbol']}, {self.registration['role']})"
 
-    def get_waypoint(self, client):
+    def get_waypoint(self):
         """Returns the waypoint where this ship is located.
         """
-        return client.get_waypoint(self.nav["waypointSymbol"])
+        return self.client.get_waypoint(self.nav["waypointSymbol"])
 
-    def in_range(self, client, waypoint) -> bool:
+    def get_cooldown(self):
+        """Returns the cooldown details of this ship, or None.
+        """
+        resp = self.client.get(f"{self.client.api_url}/my/ships/{self.symbol}/cooldown")
+        resp.raise_for_status()
+        if resp.status_code == 204:
+            return None
+        return resp.json()["data"]
+
+    def in_range(self, waypoint) -> bool:
         """Returns True/False if the passed-in waypoint is within range of this ship.
         """
-        current_waypoint = self.get_waypoint(client)
+        current_waypoint = self.get_waypoint(self.client)
         distance = current_waypoint.distance(waypoint)
         if self.fuel["current"] > distance:
             return True
         else:
             return False
 
-    def flight_mode(self, client, flight_mode: str):
+    def flight_mode(self, flight_mode: str):
         """Set the flight mode for this ship.
         """
         if flight_mode not in ["DRIFT", "STEALTH", "CRUISE", "BURN"]:
@@ -49,26 +59,34 @@ class Ship(BaseModel):
         data = {
             "flightMode": flight_mode,
         }
-        resp = client.patch(f"{client.api_url}/my/ships/{self.symbol}/nav", json=data)
+        resp = self.client.patch(f"{self.client.api_url}/my/ships/{self.symbol}/nav", json=data)
         resp.raise_for_status()
         data = resp.json()["data"]
         # Update the ship nav status.
         self.nav = data
         return self.nav
 
-    def navigate(self, client, waypoint):
+    def navigate(self, waypoint):
         """Navigate to the nominated waypoint, if within range.
+        Passed-in `waypoint` can be a symbol or a Waypoint object.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/c766b84253edc-navigate-ship
         """
         # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
-            self.orbit(client)
+            self.orbit(self.client)
 
-        data = {
-            "waypointSymbol": waypoint.symbol,
-        }
+        # If the passed-in waypoint is a string, get the Waypoint object.
+        if isinstance(waypoint, str):
+            data = {
+                "waypointSymbol": waypoint,
+            }
+        else:
+            data = {
+                "waypointSymbol": waypoint.symbol,
+            }
+
         try:
-            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/navigate", json=data)
+            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/navigate", json=data)
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship fuel and nav status.
@@ -82,27 +100,27 @@ class Ship(BaseModel):
             # If the destination is out of range, return the error payload.
             return resp.json()
 
-    def orbit(self, client):
+    def orbit(self):
         """Attempt to move this ship into orbit at the current location.
         """
-        resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/orbit")
+        resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/orbit")
         resp.raise_for_status()
         data = resp.json()["data"]
         # Update the ship nav status.
         self.nav = data["nav"]
         return data
 
-    def dock(self, client):
+    def dock(self):
         """Dock this ship at the current location.
         """
-        resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/dock")
+        resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/dock")
         resp.raise_for_status()
         data = resp.json()["data"]
         # Update the ship nav status.
         self.nav = data["nav"]
         return data
 
-    def sell_cargo(self, client, commodity: str, units: int):
+    def sell_cargo(self, commodity: str, units: int):
         """Sell cargo in a given ship to a marketplace.
         TODO:
             - Persist transaction data.
@@ -110,7 +128,7 @@ class Ship(BaseModel):
         """
         # If not docked, do so first.
         if not self.nav["status"] == "DOCKED":
-            self.dock(client)
+            self.dock()
 
         data = {
             "symbol": commodity,
@@ -118,7 +136,7 @@ class Ship(BaseModel):
         }
 
         try:
-            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/sell", json=data)
+            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/sell", json=data)
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship cargo.
@@ -130,21 +148,21 @@ class Ship(BaseModel):
         except:
             return resp.json()
 
-    def refuel(self, client, units: int = None, from_cargo: bool = False):
+    def refuel(self, units: int = None, from_cargo: bool = False):
         """Refuel this ship from the local market. If not specifed, refuel to the maximum
         fuel capacity.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/1bfb58c5239dd-refuel-ship
         """
         # If not docked, do so first.
         if not self.nav["status"] == "DOCKED":
-            self.dock(client)
+            self.dock()
 
         data = {"fromCargo": from_cargo}
         if units:
             data["units": units]
 
         try:
-            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/refuel", json=data)
+            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/refuel", json=data)
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship fuel.
@@ -154,15 +172,15 @@ class Ship(BaseModel):
         except:
             return resp.json()
 
-    def survey(self, client) -> list:
+    def survey(self) -> list:
         """Survey the current location.
         """
         # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
-            self.orbit(client)
+            self.orbit()
 
         try:
-            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/survey")
+            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/survey")
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship cooldown.
@@ -177,7 +195,7 @@ class Ship(BaseModel):
             # Cooldown errors.
             return resp.json()
 
-    def extract(self, client, survey: dict = None):
+    def extract(self, survey: dict = None):
         """Extract resources from a waypoint into this ship.
         Calling extract() with a full cargo bay will not cause an exception, but will not
         extract any resources.
@@ -188,13 +206,13 @@ class Ship(BaseModel):
         # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
             print("Entering orbit")
-            self.orbit(client)
+            self.orbit()
 
         try:
             if survey:
-                resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/extract/survey", json=survey)
+                resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/extract/survey", json=survey)
             else:
-                resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/extract")
+                resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/extract")
             resp.raise_for_status()
             data = resp.json()["data"]
             y = data["extraction"]["yield"]
@@ -213,15 +231,15 @@ class Ship(BaseModel):
             # Cooldown errors.
             return resp.json()
 
-    def extract_until_full(self, client, survey: dict = None):
+    def extract_until_full(self, survey: dict = None):
         """Runs the extract() method, pausing between cooldowns, until the ship's cargo capacity
         is exhausted.
         """
-        data = self.extract(client, survey)
+        data = self.extract(survey)
         if self.cargo["capacity"] - self.cargo["units"] > 0:
             cooldown = datetime.fromisoformat(data["cooldown"]["expiration"])
             delay = cooldown - datetime.now(timezone.utc)
-            timer = Timer(delay.seconds, self.extract_until_full, args=(client, survey))
+            timer = Timer(delay.seconds, self.extract_until_full, args=(survey,))
             print(f"Cargo capacity {self.cargo['units']}/{self.cargo['capacity']}, queuing the next extract in {delay.seconds} seconds")
             timer.start()
             return timer
@@ -229,7 +247,7 @@ class Ship(BaseModel):
             print("Ship cargo capacity is full")
             return
 
-    def jettison_cargo(self, client, goods_symbol: str, units: int):
+    def jettison_cargo(self, goods_symbol: str, units: int):
         """Jetison cargo.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/3b0f8b69f56ac-jettison-cargo
         """
@@ -239,7 +257,7 @@ class Ship(BaseModel):
         }
 
         try:
-            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/jettison", json=data)
+            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/jettison", json=data)
             resp.raise_for_status()
             print(f"Jettisoned {units} units of {goods_symbol}")
             data = resp.json()["data"]
@@ -249,12 +267,12 @@ class Ship(BaseModel):
         except:
             return resp.json()
 
-    def refine(self, client, produce: str):
+    def refine(self, produce: str):
         data = {
             "produce": produce,
         }
         try:
-            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/refine", json=data)
+            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/refine", json=data)
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship cargo.
@@ -263,12 +281,12 @@ class Ship(BaseModel):
         except:
             return resp.json()
 
-    def find_market_imports(self, client, markets, exchange=False):
+    def find_market_imports(self, markets, exchange=False):
         """Print markets that import goods for the cargo inventory of this ship, given a passed-in
         list of market waypoints.
         """
         goods = [i["symbol"] for i in self.cargo["inventory"]]
-        origin = self.get_waypoint(client)
+        origin = self.get_waypoint()
         for m in markets:
             if not exchange:
                 if any(good in m.imports for good in goods):
@@ -278,6 +296,15 @@ class Ship(BaseModel):
                 if any(good in m.exchange for good in goods):
                     d = m.distance(origin)
                     print(m.symbol.ljust(12), m.type.ljust(19), "{:.2f}".format(d).ljust(6), ", ".join([i["symbol"] for i in m.market["exchange"]]))
+
+    def find_trait(self, waypoints: list, trait: str):
+        # For a given list of waypoints, output those having the given trait plus the distance
+        # away from this ship.
+        origin = self.get_waypoint()
+        for wp in waypoints:
+            if wp.has_trait(trait):
+                d = wp.distance(origin)
+                print(wp.symbol.ljust(12), wp.type.ljust(19), '{:.2f}'.format(d).ljust(6), ', '.join([t.symbol for t in wp.traits]))
 
 
 class WaypointTrait(BaseModel):
@@ -293,6 +320,7 @@ class WaypointTrait(BaseModel):
 
 class Waypoint(BaseModel):
 
+    client: Any
     symbol: str
     type: str
     system_symbol: str
@@ -336,7 +364,7 @@ class Waypoint(BaseModel):
         d = (x2 - x1)**2 + (y2 - y1)**2
         return sqrt(d)
 
-    def get_market(self, client):
+    def get_market(self):
         """Retrieves import, export and exchange data for this waypoint if it has the
         MARKETPLACE trait, otherwise returns None.
         """
@@ -346,9 +374,10 @@ class Waypoint(BaseModel):
         if self.market:
             return self.market  # Return cached data.
 
-        resp = client.get(f"{client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/market")
+        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/market")
         resp.raise_for_status()
         self.market = resp.json()["data"]
+        return self.market
 
     @property
     def imports(self):

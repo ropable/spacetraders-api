@@ -143,7 +143,7 @@ class Client(Session):
                 ships += data
                 params["page"] += 1
 
-        self.ships = [Ship(**ship) for ship in ships]
+        self.ships = [Ship(client=self, **ship) for ship in ships]
         return self.ships
 
     def get_ship(self, ship_symbol: str) -> Ship:
@@ -153,7 +153,7 @@ class Client(Session):
         resp = self.get(f"{self.api_url}/my/ships/{ship_symbol}")
         resp.raise_for_status()
         data = resp.json()["data"]
-        return Ship(**data)
+        return Ship(client=self, **data)
 
     @sleep_and_retry
     @limits(calls=30, period=60)
@@ -184,7 +184,7 @@ class Client(Session):
             waypoints = []
             for wp in system["waypoints"]:
                 wp["system_symbol"] = system["symbol"]
-                waypoints.append(Waypoint(**wp))
+                waypoints.append(Waypoint(client=self, **wp))
 
             system["waypoints"] = waypoints
             systems.append(System(**system))
@@ -207,7 +207,7 @@ class Client(Session):
         waypoints = []
         for wp in system["waypoints"]:
             wp["system_symbol"] = system["symbol"]
-            waypoints.append(Waypoint(**wp))
+            waypoints.append(Waypoint(client=self, **wp))
 
         system["waypoints"] = waypoints
         system = System(**system)
@@ -215,10 +215,15 @@ class Client(Session):
 
     @sleep_and_retry
     @limits(calls=30, period=60)
-    def list_waypoints(self, system_symbol: str, wp_type: str = None, wp_trait: str = None) -> List[Waypoint]:
+    def list_waypoints(self, system, wp_type: str = None, wp_trait: str = None) -> List[Waypoint]:
         """List all waypoints for the given system.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/32186cf59e324-list-waypoints-in-system
         """
+        # `system` can either be a System or a string symbol for a system.
+        if isinstance(system, str):
+            system_symbol = system
+        else:
+            system_symbol = system.symbol
         # First, determine if client.systems contains a system with this symbol.
         if [s for s in self.systems if s.symbol == system_symbol]:
             system = [s for s in self.systems if s.symbol == system_symbol][0]
@@ -250,7 +255,7 @@ class Client(Session):
             for trait in waypoint["traits"]:
                 traits.append(WaypointTrait(**trait))
             waypoint["traits"] = traits
-            waypoints.append(Waypoint(**waypoint))
+            waypoints.append(Waypoint(client=self, **waypoint))
 
         # Sort waypoints by symbol.
         waypoints = sorted(waypoints, key=lambda x: x.symbol)
@@ -293,7 +298,7 @@ class Client(Session):
             traits.append(WaypointTrait(**trait))
         waypoint["traits"] = traits
 
-        return Waypoint(**waypoint)
+        return Waypoint(client=self, **waypoint)
 
     def get_market(self, waypoint) -> dict:
         """Get import, export & exchange data for a marketplace.

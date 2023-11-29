@@ -10,9 +10,9 @@ agent = client.get_agent()
 contracts = client.list_contracts()
 ships = client.list_ships()
 ship = ships[0]
-system_symbol = ship.nav['systemSymbol']
-system = client.get_system(system_symbol)
-waypoints = client.list_waypoints(system.symbol)
+system = client.get_system(ship.nav['systemSymbol'])
+# client.list_waypoints works with either a System or symbol.
+waypoints = client.list_waypoints(system)
 markets = client.list_waypoints(system.symbol, wp_trait='MARKETPLACE')
 for wp in markets:
     if not wp.market:
