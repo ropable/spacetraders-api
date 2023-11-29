@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from humanize import naturaldelta
 from math import sqrt
 from pydantic import BaseModel, Field
+from threading import Timer
 from typing import List, Any
 
 
@@ -103,6 +104,8 @@ class Ship(BaseModel):
 
     def sell_cargo(self, client, commodity: str, units: int):
         """Sell cargo in a given ship to a marketplace.
+        TODO:
+            - Persist transaction data.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/b8ed791381b41-sell-cargo
         """
         # If not docked, do so first.
@@ -120,6 +123,8 @@ class Ship(BaseModel):
             data = resp.json()["data"]
             # Update the ship cargo.
             self.cargo = data["cargo"]
+            t = data["transaction"]
+            print(f"Sold {t['units']} units of {t['tradeSymbol']} for {t['totalPrice']} credits")
             # Return the transaction output.
             return data["transaction"]
         except:
@@ -149,24 +154,36 @@ class Ship(BaseModel):
         except:
             return resp.json()
 
-    def survey(self, client):
-        """
+    def survey(self, client) -> list:
+        """Survey the current location.
         """
         # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
             self.orbit(client)
 
-        return
+        try:
+            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/survey")
+            resp.raise_for_status()
+            data = resp.json()["data"]
+            # Update the ship cooldown.
+            self.cooldown = data["cooldown"]
+            # Print the cooldown expiry.
+            exp = data["cooldown"]["expiration"]
+            cooldown = datetime.fromisoformat(exp)
+            now = datetime.now(timezone.utc)
+            print(f"Ship cooldown ends in {naturaldelta(cooldown - now)} ({exp})")
+            return data["surveys"]
+        except:
+            # Cooldown errors.
+            return resp.json()
 
     def extract(self, client, survey: dict = None):
         """Extract resources from a waypoint into this ship.
         Calling extract() with a full cargo bay will not cause an exception, but will not
         extract any resources.
 
-        TODO:
-            - Accept survey in request body.
-
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/b3931d097608d-extract-resources
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/cdf110a7af0ea-extract-resources-with-survey
         """
         # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
@@ -174,20 +191,76 @@ class Ship(BaseModel):
             self.orbit(client)
 
         try:
-            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/extract")
+            if survey:
+                resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/extract/survey", json=survey)
+            else:
+                resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/extract")
             resp.raise_for_status()
             data = resp.json()["data"]
+            y = data["extraction"]["yield"]
+            print(f"Extract yielded {y['units']} units of {y['symbol']}")
             # Update the ship's cargo status.
             self.cargo = data["cargo"]
+            # Update the ship cooldown.
+            self.cooldown = data["cooldown"]
             # Print the cooldown expiry.
             exp = data["cooldown"]["expiration"]
             cooldown = datetime.fromisoformat(exp)
             now = datetime.now(timezone.utc)
             print(f"Ship cooldown ends in {naturaldelta(cooldown - now)} ({exp})")
-
-            return data["extraction"]
+            return data
         except:
             # Cooldown errors.
+            return resp.json()
+
+    def extract_until_full(self, client, survey: dict = None):
+        """Runs the extract() method, pausing between cooldowns, until the ship's cargo capacity
+        is exhausted.
+        """
+        data = self.extract(client, survey)
+        if self.cargo["capacity"] - self.cargo["units"] > 0:
+            cooldown = datetime.fromisoformat(data["cooldown"]["expiration"])
+            delay = cooldown - datetime.now(timezone.utc)
+            timer = Timer(delay.seconds, self.extract_until_full, args=(client, survey))
+            print(f"Cargo capacity {self.cargo['units']}/{self.cargo['capacity']}, queuing the next extract in {delay.seconds} seconds")
+            timer.start()
+            return timer
+        else:
+            print("Ship cargo capacity is full")
+            return
+
+    def jettison_cargo(self, client, goods_symbol: str, units: int):
+        """Jetison cargo.
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/3b0f8b69f56ac-jettison-cargo
+        """
+        data = {
+            "symbol": goods_symbol,
+            "units": units,
+        }
+
+        try:
+            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/jettison", json=data)
+            resp.raise_for_status()
+            print(f"Jettisoned {units} units of {goods_symbol}")
+            data = resp.json()["data"]
+            # Update the ship cargo.
+            self.cargo = data["cargo"]
+            return data
+        except:
+            return resp.json()
+
+    def refine(self, client, produce: str):
+        data = {
+            "produce": produce,
+        }
+        try:
+            resp = client.post(f"{client.api_url}/my/ships/{self.symbol}/refine", json=data)
+            resp.raise_for_status()
+            data = resp.json()["data"]
+            # Update the ship cargo.
+            self.cargo = data["cargo"]
+            return data
+        except:
             return resp.json()
 
     def find_market_imports(self, client, markets, exchange=False):
