@@ -2,7 +2,7 @@
 
 Reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-space-traders-api
 
-```
+```python
 from spacetraders_api import Client
 
 client = Client()
@@ -13,6 +13,7 @@ ship = ships[0]
 system = client.get_system(ship.nav['systemSymbol'])
 # client.list_waypoints works with either a System or symbol.
 waypoints = client.list_waypoints(system)
+# client.list_waypoints can be filtered by type or by trait.
 markets = client.list_waypoints(system.symbol, wp_trait='MARKETPLACE')
 for wp in markets:
     if not wp.market:

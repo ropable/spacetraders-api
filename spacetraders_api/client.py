@@ -3,6 +3,7 @@ from pathlib import Path
 from ratelimit import limits, sleep_and_retry
 from requests import Session
 from typing import List
+from zoneinfo import ZoneInfo
 
 from .models import (
     Ship,
@@ -17,6 +18,9 @@ dot_env = os.path.join(str(d), ".env")
 if os.path.exists(dot_env):
     from dotenv import load_dotenv
     load_dotenv()
+
+tz = os.environ.get("TZ", "Australia/Perth")
+TZ = ZoneInfo(tz)
 
 
 class Client(Session):
@@ -274,21 +278,21 @@ class Client(Session):
             waypoints = [wp for wp in waypoints if wp.has_trait(trait)]
         return waypoints
 
-    def get_waypoint(self, waypoint_symbol: str) -> Waypoint:
+    def get_waypoint(self, symbol: str) -> Waypoint:
         """Get a waypoint by symbol.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/58e66f2fa8c82-get-waypoint
         """
         # Infer the system symbol from the waypoint symbol.
-        system_symbol = "-".join(waypoint_symbol.split("-")[0:2])
+        system_symbol = "-".join(symbol.split("-")[0:2])
 
         # Check if client.systems contains a system with this symbol.
         if self.systems and [s for s in self.systems if s.symbol == system_symbol]:
             system = [s for s in self.systems if s.symbol == system_symbol][0]
             # Check if waypoints for the system have been cached.
-            if system.waypoints_cached and [wp for wp in system.waypoints if wp.symbol == waypoint_symbol]:
-                return [wp for wp in system.waypoints if wp.symbol == waypoint_symbol][0]
+            if system.waypoints_cached and [wp for wp in system.waypoints if wp.symbol == symbol]:
+                return [wp for wp in system.waypoints if wp.symbol == symbol][0]
 
-        resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{waypoint_symbol}")
+        resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}")
         resp.raise_for_status()
         waypoint = resp.json()["data"]
         waypoint["system_symbol"] = system_symbol
@@ -304,6 +308,10 @@ class Client(Session):
         """Get import, export & exchange data for a marketplace.
         This differs from the Waypoint.get_market method in that it always makes a HTTP request.
         """
+        # `waypoint` can either be a Waypoint or a string symbol for a waypoint.
+        if isinstance(waypoint, str):
+            waypoint = self.get_waypoint(waypoint)
+
         if not waypoint.has_trait("MARKETPLACE"):
             return None
 
@@ -313,3 +321,22 @@ class Client(Session):
         # Cache the market data on the waypoint.
         waypoint.market = resp.json()["data"]
         return waypoint.market
+
+    def arbitrage_markets(self, markets):
+        """For a passed-in list of market waypoints, print markets with matching export -> import goods.
+        """
+        for exporter in markets:
+            for export in exporter.market['exports']:
+                for importer in markets:
+                    for imp in importer.market['imports']:
+                        if imp['symbol'] == export['symbol']:
+                            d = exporter.distance(importer)
+                            print(
+                                exporter.symbol.ljust(12),
+                                exporter.type.ljust(19),
+                                export['symbol'].ljust(15),
+                                '->',
+                                importer.symbol.ljust(12),
+                                importer.type.ljust(19),
+                                '{:.2f}'.format(d),
+                            )

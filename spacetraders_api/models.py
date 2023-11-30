@@ -73,7 +73,7 @@ class Ship(BaseModel):
         """
         # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
-            self.orbit(self.client)
+            self.orbit()
 
         # If the passed-in waypoint is a string, get the Waypoint object.
         if isinstance(waypoint, str):
@@ -94,7 +94,8 @@ class Ship(BaseModel):
             self.nav = data["nav"]
             now = datetime.now(timezone.utc)
             arrival = datetime.fromisoformat(self.nav["route"]["arrival"])
-            print(f"Estimated arrival in {naturaldelta(arrival - now)}")
+            from .client import TZ
+            print(f"Estimated arrival in {naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})")
             return self.nav
         except:
             # If the destination is out of range, return the error payload.
@@ -247,10 +248,19 @@ class Ship(BaseModel):
             print("Ship cargo capacity is full")
             return
 
-    def jettison_cargo(self, goods_symbol: str, units: int):
-        """Jetison cargo.
+    def jettison_cargo(self, goods_symbol: str, units: int = None):
+        """Jettison cargo. If `units` is not specified, jettison the full amount of that cargo.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/3b0f8b69f56ac-jettison-cargo
         """
+        if not units:
+            for i in self.cargo["inventory"]:
+                if i["symbol"] == goods_symbol:
+                    units = i["units"]
+                    break
+
+        if not units:
+            return
+
         data = {
             "symbol": goods_symbol,
             "units": units,
@@ -305,6 +315,34 @@ class Ship(BaseModel):
             if wp.has_trait(trait):
                 d = wp.distance(origin)
                 print(wp.symbol.ljust(12), wp.type.ljust(19), '{:.2f}'.format(d).ljust(6), ', '.join([t.symbol for t in wp.traits]))
+
+    def purchase_cargo(self, commodity: str, units: int):
+        """Purchase cargo in a given ship from a marketplace.
+        TODO:
+            - Persist transaction data.
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/45acbf7dc3005-purchase-cargo
+        """
+        # If not docked, do so first.
+        if not self.nav["status"] == "DOCKED":
+            self.dock()
+
+        data = {
+            "symbol": commodity,
+            "units": units,
+        }
+
+        try:
+            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/purchase", json=data)
+            resp.raise_for_status()
+            data = resp.json()["data"]
+            # Update the ship cargo.
+            self.cargo = data["cargo"]
+            t = data["transaction"]
+            print(f"Purchased {t['units']} units of {t['tradeSymbol']} for {t['totalPrice']} credits")
+            # Return the transaction output.
+            return data["transaction"]
+        except:
+            return resp.json()
 
 
 class WaypointTrait(BaseModel):
