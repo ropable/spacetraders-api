@@ -8,19 +8,20 @@ from typing import List, Any
 
 class Ship(BaseModel):
 
+    symbol: str = Field(alias="symbol", default=None)
+    registration: dict = Field(alias="registration", default={})
+    nav: dict = Field(alias="nav", default={})
+    crew: dict = Field(alias="crew", default={})
+    frame: dict = Field(alias="frame", default={})
+    reactor: dict = Field(alias="reactor", default={})
+    engine: dict = Field(alias="engine", default={})
+    cooldown: dict = Field(alias="cooldown", default={})
+    modules: List[dict] = Field(alias="modules", default=[])
+    mounts: List[dict] = Field(alias="mounts", default=[])
+    cargo: dict = Field(alias="cargo", default={})
+    fuel: dict = Field(alias="fuel", default={})
+
     client: Any
-    symbol: str
-    registration: dict
-    nav: dict
-    crew: dict
-    frame: dict
-    reactor: dict
-    engine: dict
-    cooldown: dict
-    modules: List[dict]
-    mounts: List[dict]
-    cargo: dict
-    fuel: dict
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -39,16 +40,6 @@ class Ship(BaseModel):
         if resp.status_code == 204:
             return None
         return resp.json()["data"]
-
-    def in_range(self, waypoint) -> bool:
-        """Returns True/False if the passed-in waypoint is within range of this ship.
-        """
-        current_waypoint = self.get_waypoint(self.client)
-        distance = current_waypoint.distance(waypoint)
-        if self.fuel["current"] > distance:
-            return True
-        else:
-            return False
 
     def flight_mode(self, flight_mode: str):
         """Set the flight mode for this ship.
@@ -347,9 +338,9 @@ class Ship(BaseModel):
 
 class WaypointTrait(BaseModel):
 
-    symbol: str
-    name: str
-    description: str
+    symbol: str = Field(alias="symbol", default=None)
+    name: str = Field(alias="name", default=None)
+    description: str = Field(alias="description", default=None)
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -358,21 +349,24 @@ class WaypointTrait(BaseModel):
 
 class Waypoint(BaseModel):
 
-    client: Any
-    symbol: str
-    type: str
-    system_symbol: str
-    x: int
-    y: int
-    orbitals: List[dict]
-    orbits: str = None
-    faction: dict = None
-    traits: List = None
-    modifiers: List[dict] = None
-    chart: dict = None
-    is_under_construction: Any = None
-    market: dict = None
+    symbol: str = Field(alias="symbol", default=None)
+    type: str = Field(alias="type", default=None)
+    system_symbol: str = Field(alias="systemSymbol", default=None)
+    x: int = Field(alias="x", default=None)
+    y: int = Field(alias="y", default=None)
+    orbitals: List = Field(alias="orbitals", default=[])
+    orbits: str = Field(alias="orbits", default=None)
+    faction: dict = Field(alias="faction", default={})
+    traits: List["WaypointTrait"] = Field(alias="traits", default=[])
+    modifiers: List = Field(alias="modifiers", default=[])
+    chart: dict = Field(alias="chart", default={})
+    is_under_construction: Any = Field(alias="isUnderConstruction", default=None)
+
+    client: Any = Field(alias="client", default=None)
+    market: dict = Field(alias="market", default={})
     # TODO: market info age / expiry.
+    jump_gate_connections: List[str] = Field(alias="jump_gate_connections", default=[])
+    construction_site: dict = Field(alias="construction_site", default={})
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -441,16 +435,45 @@ class Waypoint(BaseModel):
 
         return ", ".join([i["symbol"] for i in self.market["exchange"]])
 
+    def get_jump_gate(self):
+        """Retrieves jump gate details for this waypoint if type JUMP_GATE,
+        otherwise returns None.
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/decd101af6414-get-jump-gate
+        """
+        if not self.type == "JUMP_GATE":
+            return None
+
+        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/jump-gate")
+        resp.raise_for_status()
+        data = resp.json()["data"]
+        self.jump_gate_connections = data["connections"]
+        return self.jump_gate_connections
+
+    def get_construction_site(self):
+        """Retrieves construction details for this waypoint if it has the
+        property is_under_construction = True, otherwise returns None.
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/c4db8d0c02144-get-construction-site
+        """
+        if not self.is_under_construction:
+            return None
+
+        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/construction")
+        resp.raise_for_status()
+        data = resp.json()["data"]
+        self.construction_site = data
+        return self.construction_site
+
 
 class System(BaseModel):
 
-    symbol: str
-    sector_symbol: str = Field(alias="sectorSymbol")
-    type: str
-    x: int
-    y: int
-    waypoints: List
-    factions: List
+    symbol: str = Field(alias="symbol", default=None)
+    sector_symbol: str = Field(alias="sectorSymbol", default=None)
+    type: str = Field(alias="type", default=None)
+    x: int = Field(alias="x", default=None)
+    y: int = Field(alias="y", default=None)
+    waypoints: List = Field(alias="waypoints", default=[])
+    factions: List = Field(alias="factions", default=[])
+
     waypoints_cached: bool = False
 
     def __repr__(self):
