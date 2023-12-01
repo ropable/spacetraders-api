@@ -126,6 +126,33 @@ class Client(Session):
         resp.raise_for_status()
         return resp.json()["data"]["contract"]
 
+    def list_factions(self) -> list:
+        """Ref: https://spacetraders.stoplight.io/docs/spacetraders/93c5d5e6ad5b0-list-factions
+        """
+        params = {
+            "limit": 20,
+            "page": 1,
+        }
+        factions = []
+        data = True
+
+        while data:
+            resp = self.get(f"{self.api_url}/factions", params=params)
+            resp.raise_for_status()
+            data = resp.json()["data"]
+            if data:
+                factions += data
+                params["page"] += 1
+
+        return factions
+
+    def get_faction(self, symbol: str) -> dict:
+        """Ref: https://spacetraders.stoplight.io/docs/spacetraders/a50decd0f9483-get-faction
+        """
+        resp = self.get(f"{self.api_url}/factions/{symbol}")
+        resp.raise_for_status()
+        return resp.json()["data"]
+
     @sleep_and_retry
     @limits(calls=30, period=60)
     def list_ships(self) -> List[Ship]:
@@ -259,7 +286,16 @@ class Client(Session):
             for trait in waypoint["traits"]:
                 traits.append(WaypointTrait(**trait))
             waypoint["traits"] = traits
-            waypoints.append(Waypoint(client=self, **waypoint))
+            wp = Waypoint(client=self, **waypoint)
+
+            if wp.type == "JUMP_GATE":
+                wp.get_jump_gate()
+            if wp.is_under_construction:
+                wp.get_construction_site()
+            if wp.has_trait("MARKETPLACE"):
+                wp.get_market()
+
+            waypoints.append(wp)
 
         # Sort waypoints by symbol.
         waypoints = sorted(waypoints, key=lambda x: x.symbol)
