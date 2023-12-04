@@ -195,14 +195,35 @@ class Client(Session):
         self.ships = [Ship(client=self, **ship) for ship in ships]
         return self.ships
 
-    def get_ship(self, ship_symbol: str) -> Ship:
+    def get_ship(self, symbol: str) -> Ship:
         """Get the details of a single ship under your ownership.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/800936299c838-get-ship
         """
-        resp = self.get(f"{self.api_url}/my/ships/{ship_symbol}")
+        resp = self.get(f"{self.api_url}/my/ships/{symbol}")
         resp.raise_for_status()
         data = resp.json()["data"]
         return Ship(client=self, **data)
+
+    def purchase_ship(self, ship_type, waypoint) -> Ship:
+        """Purchase a ship from a shipyard.
+        Ref: https://spacetraders.stoplight.io/docs/spacetraders/403855e2e99ad-purchase-ship
+        """
+        data = {
+            "shipType": ship_type,
+        }
+        # If the passed-in waypoint is a string, get the Waypoint object.
+        if isinstance(waypoint, str):
+            data["waypointSymbol"] = waypoint
+        else:
+            data["waypointSymbol"] = waypoint.symbol
+
+        try:
+            resp = self.client.post(f"{self.client.api_url}/my/ships", json=data)
+            resp.raise_for_status()
+            data = resp.json()["data"]
+            return Ship(client=self, **data["ship"])
+        except:
+            return resp.json()
 
     @sleep_and_retry
     @limits(calls=30, period=60)

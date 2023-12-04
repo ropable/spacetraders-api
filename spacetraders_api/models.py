@@ -403,9 +403,6 @@ class Waypoint(BaseModel):
         if not self.has_trait("MARKETPLACE"):
             return None
 
-        if self.market:
-            return self.market  # Return cached data.
-
         resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/market")
         resp.raise_for_status()
         self.market = resp.json()["data"]
