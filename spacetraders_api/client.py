@@ -56,6 +56,24 @@ class Client(Session):
         resp.raise_for_status()
         return resp.json()
 
+    def register_agent(self, symbol: str, faction: str="COSMIC", email: str=None):
+        """Register a new agent and ties it to an account.
+        """
+        # For this method only, pop the Authorization header.
+        self.headers.pop("Authorization")
+        data = {
+            "symbol": symbol,
+            "faction": faction,
+        }
+        if email:
+            data["email"] = email
+        resp = self.post(f"{self.api_url}/register", json=data)
+        resp.raise_for_status()
+        data = resp.json()["data"]
+        # Re-set the auth header.
+        self.headers["Authorization"] = f"Bearer {data['token']}"
+        return resp.json()["data"]
+
     @sleep_and_retry
     @limits(calls=30, period=60)
     def list_agents(self) -> list:

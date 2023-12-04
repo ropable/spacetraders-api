@@ -411,6 +411,17 @@ class Waypoint(BaseModel):
         self.market = resp.json()["data"]
         return self.market
 
+    def get_shipyard(self):
+        """Retrieves shipyard data from this waypoint if it has the SHIPYARD trait,
+        otherwise returns None.
+        """
+        if not self.has_trait("SHIPYARD"):
+            return None
+
+        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/shipyard")
+        resp.raise_for_status()
+        return resp.json()["data"]
+
     @property
     def imports(self):
 
