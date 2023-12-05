@@ -3,7 +3,6 @@ from pathlib import Path
 from ratelimit import limits, sleep_and_retry
 from requests import Session
 from typing import List
-from zoneinfo import ZoneInfo
 
 from .models import (
     Ship,
@@ -18,9 +17,6 @@ dot_env = os.path.join(str(d), ".env")
 if os.path.exists(dot_env):
     from dotenv import load_dotenv
     load_dotenv()
-
-tz = os.environ.get("TZ", "Australia/Perth")
-TZ = ZoneInfo(tz)
 
 
 class Client(Session):
@@ -297,7 +293,7 @@ class Client(Session):
         # First, determine if client.systems contains a system with this symbol.
         if [s for s in self.systems if s.symbol == system_symbol]:
             system = [s for s in self.systems if s.symbol == system_symbol][0]
-            if system.waypoints_cached and system.waypoints:  # Return cached data.
+            if system.waypoints:  # Return cached data.
                 return self.filter_waypoints(system.waypoints, wp_type, wp_trait)
         else:
             system = self.get_system(system_symbol)
@@ -338,10 +334,7 @@ class Client(Session):
 
         # Sort waypoints by symbol.
         waypoints = sorted(waypoints, key=lambda x: x.symbol)
-
         system.waypoints = waypoints
-        system.waypoints_cached = True
-
         return self.filter_waypoints(waypoints, wp_type, wp_trait)
 
     def filter_waypoints(self, waypoints: list, type: str = None, trait: str = None):
@@ -364,7 +357,7 @@ class Client(Session):
         if self.systems and [s for s in self.systems if s.symbol == system_symbol]:
             system = [s for s in self.systems if s.symbol == system_symbol][0]
             # Check if waypoints for the system have been cached.
-            if system.waypoints_cached and [wp for wp in system.waypoints if wp.symbol == symbol]:
+            if [wp for wp in system.waypoints if wp.symbol == symbol]:
                 return [wp for wp in system.waypoints if wp.symbol == symbol][0]
 
         resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}")
@@ -379,39 +372,42 @@ class Client(Session):
 
         return Waypoint(client=self, **waypoint)
 
-    def get_market(self, waypoint) -> dict:
-        """Get import, export & exchange data for a marketplace.
-        This differs from the Waypoint.get_market method in that it always makes a HTTP request.
-        """
-        # `waypoint` can either be a Waypoint or a string symbol for a waypoint.
-        if isinstance(waypoint, str):
-            waypoint = self.get_waypoint(waypoint)
-
-        if not waypoint.has_trait("MARKETPLACE"):
-            return None
-
-        resp = self.get(f"{self.api_url}/systems/{waypoint.system_symbol}/waypoints/{waypoint.symbol}/market")
-        resp.raise_for_status()
-
-        # Cache the market data on the waypoint.
-        waypoint.market = resp.json()["data"]
-        return waypoint.market
-
-    def arbitrage_markets(self, markets):
+    def arbitrage_markets(self, markets, distance_limit=None, return_waypoints=False):
         """For a passed-in list of market waypoints, print markets with matching export -> import goods.
+        Optionally limit the output to markets <= `distance_limit` apart.
         """
+        exporter_list = set()
+        importer_list = set()
         for exporter in markets:
             for export in exporter.market['exports']:
                 for importer in markets:
                     for imp in importer.market['imports']:
                         if imp['symbol'] == export['symbol']:
-                            d = exporter.distance(importer)
-                            print(
-                                exporter.symbol.ljust(12),
-                                exporter.type.ljust(19),
-                                export['symbol'].ljust(15),
-                                '->',
-                                importer.symbol.ljust(12),
-                                importer.type.ljust(19),
-                                '{:.2f}'.format(d),
-                            )
+                            distance = exporter.distance(importer)
+                            if distance_limit and distance <= distance_limit:
+                                exporter_list.add(exporter.symbol)
+                                importer_list.add(importer.symbol)
+                                print(
+                                    exporter.symbol.ljust(12),
+                                    exporter.type.ljust(19),
+                                    export['symbol'].ljust(15),
+                                    '->',
+                                    importer.symbol.ljust(12),
+                                    importer.type.ljust(19),
+                                    '{:.2f}'.format(distance),
+                                )
+                            elif not distance_limit:
+                                exporter_list.add(exporter.symbol)
+                                importer_list.add(importer.symbol)
+                                print(
+                                    exporter.symbol.ljust(12),
+                                    exporter.type.ljust(19),
+                                    export['symbol'].ljust(15),
+                                    '->',
+                                    importer.symbol.ljust(12),
+                                    importer.type.ljust(19),
+                                    '{:.2f}'.format(distance),
+                                )
+
+        if return_waypoints:
+            return exporter_list, importer_list

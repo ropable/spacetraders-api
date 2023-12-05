@@ -1,9 +1,15 @@
 from datetime import datetime, timezone
 from humanize import naturaldelta
-from math import sqrt
+from math import dist
+import os
 from pydantic import BaseModel, Field
 from threading import Timer
 from typing import List, Any
+from zoneinfo import ZoneInfo
+
+
+tz = os.environ.get("TZ", "Australia/Perth")
+TZ = ZoneInfo(tz)
 
 
 class Ship(BaseModel):
@@ -83,10 +89,7 @@ class Ship(BaseModel):
             # Update the ship fuel and nav status.
             self.fuel = data["fuel"]
             self.nav = data["nav"]
-            now = datetime.now(timezone.utc)
-            arrival = datetime.fromisoformat(self.nav["route"]["arrival"])
-            from .client import TZ
-            print(f"Estimated arrival in {naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})")
+            self.arrival()  # Print the arrival time.
             return self.nav
         except:
             # If the destination is out of range, return the error payload.
@@ -335,6 +338,13 @@ class Ship(BaseModel):
         except:
             return resp.json()
 
+    def arrival(self):
+        if self.nav['status'] != 'IN_TRANSIT':
+            return
+        now = datetime.now(timezone.utc)
+        arrival = datetime.fromisoformat(self.nav["route"]["arrival"])
+        print(f"Arrival in {naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})")
+
 
 class WaypointTrait(BaseModel):
 
@@ -389,12 +399,8 @@ class Waypoint(BaseModel):
 
     def distance(self, waypoint):
         """Calculate the distance from this waypoint to the passed-in waypoint.
-        Ref: https://www.omnicalculator.com/math/coordinate-distance
         """
-        x1, y1 = self.x, self.y
-        x2, y2 = waypoint.x, waypoint.y
-        d = (x2 - x1)**2 + (y2 - y1)**2
-        return sqrt(d)
+        return dist((self.x, self.y), (waypoint.x, waypoint.y))
 
     def get_market(self):
         """Retrieves import, export and exchange data for this waypoint if it has the
@@ -421,7 +427,8 @@ class Waypoint(BaseModel):
 
     @property
     def imports(self):
-
+        """Returns a comma-separated sting of imports.
+        """
         if not self.market:
             return None
 
@@ -429,7 +436,8 @@ class Waypoint(BaseModel):
 
     @property
     def exports(self):
-
+        """Returns a comma-separated sting of exports.
+        """
         if not self.market:
             return None
 
@@ -437,7 +445,8 @@ class Waypoint(BaseModel):
 
     @property
     def exchange(self):
-
+        """Returns a comma-separated sting of exchange goods.
+        """
         if not self.market:
             return None
 
@@ -481,8 +490,6 @@ class System(BaseModel):
     y: int = Field(alias="y", default=None)
     waypoints: List = Field(alias="waypoints", default=[])
     factions: List = Field(alias="factions", default=[])
-
-    waypoints_cached: bool = False
 
     def __repr__(self):
         cls = self.__class__.__name__
