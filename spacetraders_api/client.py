@@ -23,6 +23,7 @@ class Client(Session):
     """An authenticated Spacetraders HTTP client having methods named after each of the
     API endpoints.
     """
+
     def __init__(self, token=None, api_url=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -52,9 +53,8 @@ class Client(Session):
         resp.raise_for_status()
         return resp.json()
 
-    def register_agent(self, symbol: str, faction: str="COSMIC", email: str=None):
-        """Register a new agent and ties it to an account.
-        """
+    def register_agent(self, symbol: str, faction: str = "COSMIC", email: str = None):
+        """Register a new agent and ties it to an account."""
         # For this method only, pop the Authorization header.
         self.headers.pop("Authorization")
         data = {
@@ -141,8 +141,7 @@ class Client(Session):
         return resp.json()["data"]["contract"]
 
     def list_factions(self) -> list:
-        """Ref: https://spacetraders.stoplight.io/docs/spacetraders/93c5d5e6ad5b0-list-factions
-        """
+        """Ref: https://spacetraders.stoplight.io/docs/spacetraders/93c5d5e6ad5b0-list-factions"""
         params = {
             "limit": 20,
             "page": 1,
@@ -161,8 +160,7 @@ class Client(Session):
         return factions
 
     def get_faction(self, symbol: str) -> dict:
-        """Ref: https://spacetraders.stoplight.io/docs/spacetraders/a50decd0f9483-get-faction
-        """
+        """Ref: https://spacetraders.stoplight.io/docs/spacetraders/a50decd0f9483-get-faction"""
         resp = self.get(f"{self.api_url}/factions/{symbol}")
         resp.raise_for_status()
         return resp.json()["data"]
@@ -281,7 +279,9 @@ class Client(Session):
 
     @sleep_and_retry
     @limits(calls=30, period=60)
-    def list_waypoints(self, system, wp_type: str = None, wp_trait: str = None) -> List[Waypoint]:
+    def list_waypoints(
+        self, system, wp_type: str = None, wp_trait: str = None
+    ) -> List[Waypoint]:
         """List all waypoints for the given system.
         Ref: https://spacetraders.stoplight.io/docs/spacetraders/32186cf59e324-list-waypoints-in-system
         """
@@ -307,7 +307,9 @@ class Client(Session):
         data = True
 
         while data:
-            resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints", params=params)
+            resp = self.get(
+                f"{self.api_url}/systems/{system_symbol}/waypoints", params=params
+            )
             resp.raise_for_status()
             data = resp.json()["data"]
             if data:
@@ -338,8 +340,7 @@ class Client(Session):
         return self.filter_waypoints(waypoints, wp_type, wp_trait)
 
     def filter_waypoints(self, waypoints: list, type: str = None, trait: str = None):
-        """Filter a list of waypoints by type and/or trait symbol.
-        """
+        """Filter a list of waypoints by type and/or trait symbol."""
         if type:
             waypoints = [wp for wp in waypoints if wp.type == type]
         if trait:
@@ -379,10 +380,10 @@ class Client(Session):
         exporter_list = set()
         importer_list = set()
         for exporter in markets:
-            for export in exporter.market['exports']:
+            for export in exporter.market["exports"]:
                 for importer in markets:
-                    for imp in importer.market['imports']:
-                        if imp['symbol'] == export['symbol']:
+                    for imp in importer.market["imports"]:
+                        if imp["symbol"] == export["symbol"]:
                             distance = exporter.distance(importer)
                             if distance_limit and distance <= distance_limit:
                                 exporter_list.add(exporter.symbol)
@@ -390,11 +391,11 @@ class Client(Session):
                                 print(
                                     exporter.symbol.ljust(12),
                                     exporter.type.ljust(19),
-                                    export['symbol'].ljust(15),
-                                    '->',
+                                    export["symbol"].ljust(15),
+                                    "->",
                                     importer.symbol.ljust(12),
                                     importer.type.ljust(19),
-                                    '{:.2f}'.format(distance),
+                                    "{:.2f}".format(distance),
                                 )
                             elif not distance_limit:
                                 exporter_list.add(exporter.symbol)
@@ -402,11 +403,11 @@ class Client(Session):
                                 print(
                                     exporter.symbol.ljust(12),
                                     exporter.type.ljust(19),
-                                    export['symbol'].ljust(15),
-                                    '->',
+                                    export["symbol"].ljust(15),
+                                    "->",
                                     importer.symbol.ljust(12),
                                     importer.type.ljust(19),
-                                    '{:.2f}'.format(distance),
+                                    "{:.2f}".format(distance),
                                 )
 
         if return_waypoints:

@@ -13,7 +13,6 @@ TZ = ZoneInfo(tz)
 
 
 class Ship(BaseModel):
-
     symbol: str = Field(alias="symbol", default=None)
     registration: dict = Field(alias="registration", default={})
     nav: dict = Field(alias="nav", default={})
@@ -34,13 +33,11 @@ class Ship(BaseModel):
         return f"{cls} ({self.symbol}, {self.frame['symbol']}, {self.registration['role']})"
 
     def get_waypoint(self):
-        """Returns the waypoint where this ship is located.
-        """
+        """Returns the waypoint where this ship is located."""
         return self.client.get_waypoint(self.nav["waypointSymbol"])
 
     def get_cooldown(self):
-        """Returns the cooldown details of this ship, or None.
-        """
+        """Returns the cooldown details of this ship, or None."""
         resp = self.client.get(f"{self.client.api_url}/my/ships/{self.symbol}/cooldown")
         resp.raise_for_status()
         if resp.status_code == 204:
@@ -48,15 +45,16 @@ class Ship(BaseModel):
         return resp.json()["data"]
 
     def flight_mode(self, flight_mode: str):
-        """Set the flight mode for this ship.
-        """
+        """Set the flight mode for this ship."""
         if flight_mode not in ["DRIFT", "STEALTH", "CRUISE", "BURN"]:
             return None
 
         data = {
             "flightMode": flight_mode,
         }
-        resp = self.client.patch(f"{self.client.api_url}/my/ships/{self.symbol}/nav", json=data)
+        resp = self.client.patch(
+            f"{self.client.api_url}/my/ships/{self.symbol}/nav", json=data
+        )
         resp.raise_for_status()
         data = resp.json()["data"]
         # Update the ship nav status.
@@ -83,7 +81,9 @@ class Ship(BaseModel):
             }
 
         try:
-            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/navigate", json=data)
+            resp = self.client.post(
+                f"{self.client.api_url}/my/ships/{self.symbol}/navigate", json=data
+            )
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship fuel and nav status.
@@ -96,8 +96,7 @@ class Ship(BaseModel):
             return resp.json()
 
     def orbit(self):
-        """Attempt to move this ship into orbit at the current location.
-        """
+        """Attempt to move this ship into orbit at the current location."""
         resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/orbit")
         resp.raise_for_status()
         data = resp.json()["data"]
@@ -106,8 +105,7 @@ class Ship(BaseModel):
         return data
 
     def dock(self):
-        """Dock this ship at the current location.
-        """
+        """Dock this ship at the current location."""
         resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/dock")
         resp.raise_for_status()
         data = resp.json()["data"]
@@ -131,13 +129,17 @@ class Ship(BaseModel):
         }
 
         try:
-            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/sell", json=data)
+            resp = self.client.post(
+                f"{self.client.api_url}/my/ships/{self.symbol}/sell", json=data
+            )
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship cargo.
             self.cargo = data["cargo"]
             t = data["transaction"]
-            print(f"Sold {t['units']} units of {t['tradeSymbol']} for {t['totalPrice']} credits")
+            print(
+                f"Sold {t['units']} units of {t['tradeSymbol']} for {t['totalPrice']} credits"
+            )
             # Return the transaction output.
             return data["transaction"]
         except:
@@ -154,10 +156,12 @@ class Ship(BaseModel):
 
         data = {"fromCargo": from_cargo}
         if units:
-            data["units": units]
+            data["units":units]
 
         try:
-            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/refuel", json=data)
+            resp = self.client.post(
+                f"{self.client.api_url}/my/ships/{self.symbol}/refuel", json=data
+            )
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship fuel.
@@ -168,14 +172,15 @@ class Ship(BaseModel):
             return resp.json()
 
     def survey(self) -> list:
-        """Survey the current location.
-        """
+        """Survey the current location."""
         # If not in orbit, do so first.
         if not self.nav["status"] == "IN_ORBIT":
             self.orbit()
 
         try:
-            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/survey")
+            resp = self.client.post(
+                f"{self.client.api_url}/my/ships/{self.symbol}/survey"
+            )
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship cooldown.
@@ -205,9 +210,14 @@ class Ship(BaseModel):
 
         try:
             if survey:
-                resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/extract/survey", json=survey)
+                resp = self.client.post(
+                    f"{self.client.api_url}/my/ships/{self.symbol}/extract/survey",
+                    json=survey,
+                )
             else:
-                resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/extract")
+                resp = self.client.post(
+                    f"{self.client.api_url}/my/ships/{self.symbol}/extract"
+                )
             resp.raise_for_status()
             data = resp.json()["data"]
             y = data["extraction"]["yield"]
@@ -235,7 +245,9 @@ class Ship(BaseModel):
             cooldown = datetime.fromisoformat(data["cooldown"]["expiration"])
             delay = cooldown - datetime.now(timezone.utc)
             timer = Timer(delay.seconds, self.extract_until_full, args=(survey,))
-            print(f"Cargo capacity {self.cargo['units']}/{self.cargo['capacity']}, queuing the next extract in {delay.seconds} seconds")
+            print(
+                f"Cargo capacity {self.cargo['units']}/{self.cargo['capacity']}, queuing the next extract in {delay.seconds} seconds"
+            )
             timer.start()
             return timer
         else:
@@ -261,7 +273,9 @@ class Ship(BaseModel):
         }
 
         try:
-            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/jettison", json=data)
+            resp = self.client.post(
+                f"{self.client.api_url}/my/ships/{self.symbol}/jettison", json=data
+            )
             resp.raise_for_status()
             print(f"Jettisoned {units} units of {goods_symbol}")
             data = resp.json()["data"]
@@ -276,7 +290,9 @@ class Ship(BaseModel):
             "produce": produce,
         }
         try:
-            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/refine", json=data)
+            resp = self.client.post(
+                f"{self.client.api_url}/my/ships/{self.symbol}/refine", json=data
+            )
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship cargo.
@@ -295,11 +311,21 @@ class Ship(BaseModel):
             if not exchange:
                 if any(good in m.imports for good in goods):
                     d = m.distance(origin)
-                    print(m.symbol.ljust(12), m.type.ljust(19), "{:.2f}".format(d).ljust(6), ", ".join([i["symbol"] for i in m.market["imports"]]))
+                    print(
+                        m.symbol.ljust(12),
+                        m.type.ljust(19),
+                        "{:.2f}".format(d).ljust(6),
+                        ", ".join([i["symbol"] for i in m.market["imports"]]),
+                    )
             else:
                 if any(good in m.exchange for good in goods):
                     d = m.distance(origin)
-                    print(m.symbol.ljust(12), m.type.ljust(19), "{:.2f}".format(d).ljust(6), ", ".join([i["symbol"] for i in m.market["exchange"]]))
+                    print(
+                        m.symbol.ljust(12),
+                        m.type.ljust(19),
+                        "{:.2f}".format(d).ljust(6),
+                        ", ".join([i["symbol"] for i in m.market["exchange"]]),
+                    )
 
     def find_trait(self, waypoints: list, trait: str):
         # For a given list of waypoints, output those having the given trait plus the distance
@@ -308,7 +334,12 @@ class Ship(BaseModel):
         for wp in waypoints:
             if wp.has_trait(trait):
                 d = wp.distance(origin)
-                print(wp.symbol.ljust(12), wp.type.ljust(19), '{:.2f}'.format(d).ljust(6), ', '.join([t.symbol for t in wp.traits]))
+                print(
+                    wp.symbol.ljust(12),
+                    wp.type.ljust(19),
+                    "{:.2f}".format(d).ljust(6),
+                    ", ".join([t.symbol for t in wp.traits]),
+                )
 
     def purchase_cargo(self, commodity: str, units: int):
         """Purchase cargo in a given ship from a marketplace.
@@ -326,28 +357,33 @@ class Ship(BaseModel):
         }
 
         try:
-            resp = self.client.post(f"{self.client.api_url}/my/ships/{self.symbol}/purchase", json=data)
+            resp = self.client.post(
+                f"{self.client.api_url}/my/ships/{self.symbol}/purchase", json=data
+            )
             resp.raise_for_status()
             data = resp.json()["data"]
             # Update the ship cargo.
             self.cargo = data["cargo"]
             t = data["transaction"]
-            print(f"Purchased {t['units']} units of {t['tradeSymbol']} for {t['totalPrice']} credits")
+            print(
+                f"Purchased {t['units']} units of {t['tradeSymbol']} for {t['totalPrice']} credits"
+            )
             # Return the transaction output.
             return data["transaction"]
         except:
             return resp.json()
 
     def arrival(self):
-        if self.nav['status'] != 'IN_TRANSIT':
+        if self.nav["status"] != "IN_TRANSIT":
             return
         now = datetime.now(timezone.utc)
         arrival = datetime.fromisoformat(self.nav["route"]["arrival"])
-        print(f"Arrival in {naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})")
+        print(
+            f"Arrival in {naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})"
+        )
 
 
 class WaypointTrait(BaseModel):
-
     symbol: str = Field(alias="symbol", default=None)
     name: str = Field(alias="name", default=None)
     description: str = Field(alias="description", default=None)
@@ -358,7 +394,6 @@ class WaypointTrait(BaseModel):
 
 
 class Waypoint(BaseModel):
-
     symbol: str = Field(alias="symbol", default=None)
     type: str = Field(alias="type", default=None)
     system_symbol: str = Field(alias="systemSymbol", default=None)
@@ -384,13 +419,11 @@ class Waypoint(BaseModel):
 
     @property
     def coords(self):
-        """Return the x, y coordinates of this waypoint as a tuple.
-        """
+        """Return the x, y coordinates of this waypoint as a tuple."""
         return (self.x, self.y)
 
     def has_trait(self, symbol: str):
-        """Returns boolean based on whether this waypoint has the given trait symbol.
-        """
+        """Returns boolean based on whether this waypoint has the given trait symbol."""
         for trait in self.traits:
             if trait.symbol == symbol:
                 return True
@@ -398,8 +431,7 @@ class Waypoint(BaseModel):
         return False
 
     def distance(self, waypoint):
-        """Calculate the distance from this waypoint to the passed-in waypoint.
-        """
+        """Calculate the distance from this waypoint to the passed-in waypoint."""
         return dist((self.x, self.y), (waypoint.x, waypoint.y))
 
     def get_market(self):
@@ -409,7 +441,9 @@ class Waypoint(BaseModel):
         if not self.has_trait("MARKETPLACE"):
             return None
 
-        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/market")
+        resp = self.client.get(
+            f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/market"
+        )
         resp.raise_for_status()
         self.market = resp.json()["data"]
         return self.market
@@ -421,14 +455,15 @@ class Waypoint(BaseModel):
         if not self.has_trait("SHIPYARD"):
             return None
 
-        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/shipyard")
+        resp = self.client.get(
+            f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/shipyard"
+        )
         resp.raise_for_status()
         return resp.json()["data"]
 
     @property
     def imports(self):
-        """Returns a comma-separated sting of imports.
-        """
+        """Returns a comma-separated sting of imports."""
         if not self.market:
             return None
 
@@ -436,8 +471,7 @@ class Waypoint(BaseModel):
 
     @property
     def exports(self):
-        """Returns a comma-separated sting of exports.
-        """
+        """Returns a comma-separated sting of exports."""
         if not self.market:
             return None
 
@@ -445,8 +479,7 @@ class Waypoint(BaseModel):
 
     @property
     def exchange(self):
-        """Returns a comma-separated sting of exchange goods.
-        """
+        """Returns a comma-separated sting of exchange goods."""
         if not self.market:
             return None
 
@@ -460,7 +493,9 @@ class Waypoint(BaseModel):
         if not self.type == "JUMP_GATE":
             return None
 
-        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/jump-gate")
+        resp = self.client.get(
+            f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/jump-gate"
+        )
         resp.raise_for_status()
         data = resp.json()["data"]
         self.jump_gate_connections = data["connections"]
@@ -474,7 +509,9 @@ class Waypoint(BaseModel):
         if not self.is_under_construction:
             return None
 
-        resp = self.client.get(f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/construction")
+        resp = self.client.get(
+            f"{self.client.api_url}/systems/{self.system_symbol}/waypoints/{self.symbol}/construction"
+        )
         resp.raise_for_status()
         data = resp.json()["data"]
         self.construction_site = data
@@ -482,7 +519,6 @@ class Waypoint(BaseModel):
 
 
 class System(BaseModel):
-
     symbol: str = Field(alias="symbol", default=None)
     sector_symbol: str = Field(alias="sectorSymbol", default=None)
     type: str = Field(alias="type", default=None)
