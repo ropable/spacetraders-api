@@ -18,7 +18,7 @@ class Faction(models.Model):
     description = models.TextField(null=True, blank=True)
     headquarters = models.ForeignKey("System", on_delete=models.PROTECT, null=True, blank=True)
     traits = models.ManyToManyField(FactionTrait)
-    is_recruiting = models.BooleanField(editable=False)
+    is_recruiting = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -29,10 +29,8 @@ class Agent(models.Model):
     account_id = models.CharField(max_length=64, unique=True)
     symbol = models.CharField(max_length=32)
     email = models.EmailField(max_length=256, null=True, blank=True)
-    starting_faction = models.ForeignKey(
-        Faction, on_delete=models.PROTECT, null=True, blank=True)
-    headquarters = models.ForeignKey(
-        "Waypoint", on_delete=models.PROTECT, null=True, blank=True)
+    starting_faction = models.ForeignKey(Faction, on_delete=models.PROTECT, null=True, blank=True)
+    headquarters = models.ForeignKey("Waypoint", on_delete=models.PROTECT, null=True, blank=True)
     credits = models.IntegerField(default=0)
     ship_count = models.IntegerField(default=0)
 
@@ -123,17 +121,16 @@ class Waypoint(models.Model):
 
 
 class Chart(models.Model):
-    waypoint = models.ForeignKey(
-        Waypoint, on_delete=models.CASCADE, null=True, blank=True)
+    waypoint = models.ForeignKey(Waypoint, on_delete=models.CASCADE, null=True, blank=True)
     submitted_by = models.CharField(max_length=32)
-    submitted_on = models.DateTimeField(editable=False)
+    submitted_on = models.DateTimeField()
 
 
 class ShipNav(models.Model):
     modified = models.DateTimeField(auto_now=True)
     system = models.ForeignKey(System, on_delete=models.PROTECT, null=True, blank=True)
     waypoint = models.ForeignKey(Waypoint, on_delete=models.PROTECT, null=True, blank=True)
-    route = models.JSONField(default=dict)  # TODO: dedicated model
+    route = models.JSONField(default=dict)
     status = models.CharField(max_length=32)
     flight_mode = models.CharField(max_length=32)
 
@@ -165,14 +162,15 @@ class ShipMount(models.Model):
 
 class Ship(models.Model):
     modified = models.DateTimeField(auto_now=True)
+    agent = models.ForeignKey(Agent, on_delete=models.PROTECT)
     symbol = models.CharField(max_length=32, unique=True)
     registration = models.JSONField(default=dict)
     nav = models.OneToOneField(ShipNav, on_delete=models.CASCADE)
-    crew = models.JSONField(default=dict)  # TODO: dedicated model
-    frame = models.JSONField(default=dict)  # TODO: dedicated model
-    reactor = models.JSONField(default=dict)  # TODO: dedicated model
-    engine = models.JSONField(default=dict)  # TODO: dedicated model
-    cooldown = models.JSONField(default=dict)  # TODO: dedicated model
+    crew = models.JSONField(default=dict)
+    frame = models.JSONField(default=dict)
+    reactor = models.JSONField(default=dict)
+    engine = models.JSONField(default=dict)
+    cooldown = models.JSONField(default=dict)
     modules = models.ManyToManyField(ShipModule)
     mounts = models.ManyToManyField(ShipMount)
     cargo_capacity = models.PositiveIntegerField(default=0)
@@ -198,8 +196,40 @@ class CargoType(models.Model):
 
 class ShipCargoItem(models.Model):
     type = models.ForeignKey(CargoType, on_delete=models.PROTECT, null=True, blank=True)
-    ship = models.ForeignKey(Ship, on_delete=models.CASCADE, null=True, blank=True)
+    ship = models.ForeignKey(Ship, related_name="cargo", on_delete=models.CASCADE, null=True, blank=True)
     units = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return f"{self.units} units of {self.type}"
+
+
+class Contract(models.Model):
+    modified = models.DateTimeField(auto_now=True)
+    agent = models.ForeignKey(Agent, on_delete=models.PROTECT)
+    contract_id = models.CharField(max_length=64, unique=True)
+    faction = models.ForeignKey(Faction, on_delete=models.PROTECT, null=True, blank=True)
+    type = models.CharField(max_length=32)
+    terms_deadline = models.DateTimeField()
+    terms_payment = models.JSONField(default=dict)
+    accepted = models.BooleanField(default=False)
+    fulfilled = models.BooleanField(default=False)
+    expiration = models.DateTimeField()
+    deadline_to_accept = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.type} ({self.faction})"
+
+    @property
+    def required_goods(self):
+        return '\n'.join([str(good) for good in self.deliver_goods.all()])
+
+
+class ContractDeliverGood(models.Model):
+    contract = models.ForeignKey(Contract, related_name="deliver_goods", on_delete=models.CASCADE)
+    symbol = models.CharField(max_length=128)
+    destination = models.ForeignKey(Waypoint, on_delete=models.PROTECT)
+    units_required = models.PositiveIntegerField(default=0)
+    units_fulfilled = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.symbol} to {self.destination} ({self.units_fulfilled}/{self.units_required})"

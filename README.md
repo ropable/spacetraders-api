@@ -6,9 +6,10 @@ Bootstrap database:
 
 ```python
 from spacetraders import Client
-from spacetraders.utils import populate_factions, populate_ships, set_agent
+from spacetraders.utils import populate_factions, set_agent, populate_ships, populate_contracts
 client = Client()
 populate_factions(client)
-populate_ships(client)
 set_agent(client)
+populate_ships(client)
+populate_contracts(client)
 ```

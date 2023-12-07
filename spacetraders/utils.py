@@ -12,6 +12,8 @@ from galaxy.models import (
     ShipModule,
     CargoType,
     ShipCargoItem,
+    Contract,
+    ContractDeliverGood,
 )
 
 
@@ -145,8 +147,37 @@ def populate_system(client, system_symbol):
             print(f"{new_mod} modifer added to {waypoint}")
 
 
+def set_agent(client):
+    """Save the player Agent to the database.
+    """
+    data = client.get_agent()
+    if Faction.objects.filter(symbol=data["startingFaction"]).exists():
+        starting_faction = Faction.objects.get(symbol=data["startingFaction"])
+    else:
+        starting_faction = None
+    if not Agent.objects.filter(account_id=data["accountId"]).exists():
+        agent = Agent.objects.create(
+            account_id=data["accountId"],
+            symbol=data["symbol"],
+        )
+    else:
+        agent = Agent.objects.get(account_id=data["accountId"])
+
+    agent.starting_faction = starting_faction
+    agent.credits = data["credits"]
+    agent.ship_count = data["shipCount"]
+    if not agent.headquarters and Waypoint.objects.filter(symbol=data["headquarters"]).exists():
+        agent.headquarters = Waypoint.objects.get(symbol=data["headquarters"])
+
+    agent.save()
+    return agent
+
+
 def populate_ships(client):
     ships = client.list_ships()
+    agent_data = client.get_agent()
+    agent = Agent.objects.get(account_id=agent_data["accountId"])
+
     for data in ships:
         if not Ship.objects.filter(symbol=data["symbol"]).exists():
             # Check that system exists in the database.
@@ -164,6 +195,7 @@ def populate_ships(client):
                 flight_mode=data["nav"]["flightMode"],
             )
             ship = Ship.objects.create(
+                agent=agent,
                 symbol=data["symbol"],
                 registration=data["registration"],
                 nav=nav,
@@ -271,27 +303,46 @@ def populate_ships(client):
         print(f"Refreshed data for {ship}")
 
 
-def set_agent(client):
-    """Save the player Agent to the database.
+def populate_contracts(client):
+    """Populate Contract instances from the game server.
     """
-    data = client.get_agent()
-    if Faction.objects.filter(symbol=data["startingFaction"]).exists():
-        starting_faction = Faction.objects.get(symbol=data["startingFaction"])
-    else:
-        starting_faction = None
-    if not Agent.objects.filter(account_id=data["accountId"]).exists():
-        agent = Agent.objects.create(
-            account_id=data["accountId"],
-            symbol=data["symbol"],
-        )
-    else:
-        agent = Agent.objects.get(account_id=data["accountId"])
+    print("Downloading contracts")
+    contracts = client.list_contracts()
+    agent_data = client.get_agent()
+    agent = Agent.objects.get(account_id=agent_data["accountId"])
 
-    agent.starting_faction = starting_faction
-    agent.credits = data["credits"]
-    agent.ship_count = data["shipCount"]
-    if not agent.headquarters and Waypoint.objects.filter(symbol=data["headquarters"]).exists():
-        agent.headquarters = Waypoint.objects.get(symbol=data["headquarters"])
-
-    agent.save()
-    return agent
+    for data in contracts:
+        if not Contract.objects.filter(contract_id=data["id"]).exists():
+            faction = Faction.objects.get(symbol=data["factionSymbol"])
+            contract = Contract.objects.create(
+                agent=agent,
+                contract_id=data["id"],
+                faction=faction,
+                type=data["type"],
+                terms_deadline=data["terms"]["deadline"],
+                terms_payment=data["terms"]["payment"],
+                accepted=data["accepted"],
+                fulfilled=data["fulfilled"],
+                expiration=data["expiration"],
+                deadline_to_accept=data["deadlineToAccept"],
+            )
+            for good in data["terms"]["deliver"]:
+                destination = Waypoint.objects.get(symbol=good["destinationSymbol"])
+                ContractDeliverGood.objects.create(
+                    contract=contract,
+                    symbol=good["tradeSymbol"],
+                    destination=destination,
+                    units_required=good["unitsRequired"],
+                    units_fulfilled=good["unitsFulfilled"],
+                )
+            print(f"{contract} created")
+        else:
+            contract = Contract.objects.get(contract_id=data["id"])
+            contract.accepted = data["accepted"]
+            contract.fulfilled = data["fulfilled"]
+            contract.save()
+            for good in data["deliver"]["deliver"]:
+                deliver_good = ContractDeliverGood.objects.get(contract=contract, symbol=good["tradeSymbol"])
+                deliver_good.units_fulfilled = good["unitsFulfilled"]
+                deliver_good.save()
+            print(f"{contract} updated")

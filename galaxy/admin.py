@@ -5,6 +5,7 @@ from .models import (
     System,
     Waypoint,
     Ship,
+    Contract,
 )
 
 
@@ -49,3 +50,9 @@ class WaypointAdmin(ReadOnlyModelAdmin):
 class ShipAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "frame_name", "modified")
     readonly_fields = [field.name for field in Ship._meta.concrete_fields]
+
+
+@register(Contract)
+class ContractAdmin(ReadOnlyModelAdmin):
+    list_display = ("contract_id", "faction", "type", "terms_deadline", "accepted", "fulfilled", "expiration", "modified")
+    readonly_fields = [field.name for field in Contract._meta.concrete_fields] + ["required_goods"]
