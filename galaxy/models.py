@@ -8,6 +8,9 @@ class FactionTrait(models.Model):
     name = models.CharField(max_length=128)
     description = models.TextField(null=True, blank=True)
 
+    class Meta:
+        ordering = ("symbol",)
+
     def __str__(self):
         return self.name
 
@@ -19,6 +22,9 @@ class Faction(models.Model):
     headquarters = models.ForeignKey("System", on_delete=models.PROTECT, null=True, blank=True)
     traits = models.ManyToManyField(FactionTrait)
     is_recruiting = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("symbol",)
 
     def __str__(self):
         return self.name
@@ -46,6 +52,10 @@ class System(models.Model):
     y = models.IntegerField(editable=False)
     factions = models.ManyToManyField(Faction)
 
+    class Meta:
+        ordering = ("sector", "symbol")
+        unique_together = ("symbol", "sector")
+
     def __str__(self):
         return f"{self.symbol} ({self.type})"
 
@@ -59,6 +69,9 @@ class WaypointTrait(models.Model):
     name = models.CharField(max_length=128)
     description = models.TextField(null=True, blank=True)
 
+    class Meta:
+        ordering = ("symbol",)
+
     def __str__(self):
         return self.name
 
@@ -67,6 +80,9 @@ class WaypointModifier(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
     name = models.CharField(max_length=128)
     description = models.TextField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("symbol",)
 
     def __str__(self):
         return self.name
@@ -86,6 +102,10 @@ class Waypoint(models.Model):
     traits = models.ManyToManyField(WaypointTrait)
     modifiers = models.ManyToManyField(WaypointModifier)
     is_under_construction = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("symbol",)
+        unique_together = ("symbol", "system")
 
     def __str__(self):
         return f"{self.symbol} ({self.type})"
@@ -134,6 +154,9 @@ class ShipNav(models.Model):
     status = models.CharField(max_length=32)
     flight_mode = models.CharField(max_length=32)
 
+    def __str__(self):
+        return f"{self.status} ({self.route['arrival']}), {self.flight_mode}"
+
 
 class ShipModule(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -177,6 +200,10 @@ class Ship(models.Model):
     cargo_units = models.PositiveIntegerField(default=0)
     fuel = models.JSONField(default=dict)  # TODO: dedicated model
 
+    class Meta:
+        ordering = ("symbol",)
+        unique_together = ("agent", "symbol")
+
     def __str__(self):
         return f"{self.symbol} ({self.frame['name']})"
 
@@ -190,6 +217,9 @@ class CargoType(models.Model):
     name = models.CharField(max_length=128)
     description = models.TextField(null=True, blank=True)
 
+    class Meta:
+        ordering = ("symbol",)
+
     def __str__(self):
         return self.name
 
@@ -198,6 +228,9 @@ class ShipCargoItem(models.Model):
     type = models.ForeignKey(CargoType, on_delete=models.PROTECT, null=True, blank=True)
     ship = models.ForeignKey(Ship, related_name="cargo", on_delete=models.CASCADE, null=True, blank=True)
     units = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("type", "ship")
 
     def __str__(self):
         return f"{self.units} units of {self.type}"
@@ -233,3 +266,54 @@ class ContractDeliverGood(models.Model):
 
     def __str__(self):
         return f"{self.symbol} to {self.destination} ({self.units_fulfilled}/{self.units_required})"
+
+
+class TradeGood(models.Model):
+    symbol = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=128)
+    description = models.TextField()
+
+    class Meta:
+        ordering = ("symbol",)
+
+    def __str__(self):
+        return self.name
+
+
+class Market(models.Model):
+    waypoint = models.ForeignKey(Waypoint, on_delete=models.PROTECT)
+    exports = models.ManyToManyField(TradeGood, related_name="exports")
+    imports = models.ManyToManyField(TradeGood, related_name="imports")
+    exchange = models.ManyToManyField(TradeGood, related_name="exchange")
+
+    def __str__(self):
+        return str(self.waypoint)
+
+
+class Transaction(models.Model):
+    market = models.ForeignKey(Market, on_delete=models.CASCADE)
+    ship_symbol = models.CharField(max_length=32)
+    trade_good = models.ForeignKey(TradeGood, on_delete=models.PROTECT)
+    type = models.CharField(max_length=32)
+    units = models.PositiveIntegerField(default=0)
+    price_per_unit = models.PositiveIntegerField(default=0)
+    total_price = models.PositiveIntegerField(default=0)
+    timestamp = models.DateTimeField()
+
+    class Meta:
+        ordering = ("timestamp",)
+
+
+class MarketTradeGood(models.Model):
+    modified = models.DateTimeField(auto_now=True)
+    market = models.ForeignKey(Market, on_delete=models.CASCADE)
+    trade_good = models.ForeignKey(TradeGood, on_delete=models.PROTECT)
+    type = models.CharField(max_length=32)
+    trade_volume = models.PositiveIntegerField(default=0)
+    supply = models.CharField(max_length=32)
+    activity = models.CharField(max_length=32, null=True, blank=True)
+    purchase_price = models.PositiveIntegerField(default=0)
+    sell_price = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("market", "trade_good", "type")

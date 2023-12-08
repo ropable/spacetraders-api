@@ -14,6 +14,10 @@ from galaxy.models import (
     ShipCargoItem,
     Contract,
     ContractDeliverGood,
+    Market,
+    TradeGood,
+    Transaction,
+    MarketTradeGood,
 )
 
 
@@ -346,3 +350,73 @@ def populate_contracts(client):
                 deliver_good.units_fulfilled = good["unitsFulfilled"]
                 deliver_good.save()
             print(f"{contract} updated")
+
+
+def populate_markets(client):
+    """Populate markets
+    """
+    market_waypoints = Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol='MARKETPLACE'))
+
+    for wp in market_waypoints:
+        data = client.get_market(wp.system.symbol, wp.symbol)
+        market, created = Market.objects.get_or_create(waypoint=wp)
+
+        for imp in data["imports"]:
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=imp["symbol"],
+                name=imp["name"],
+                description=imp["description"],
+            )
+            market.imports.add(trade_good)
+
+        for exp in data["exports"]:
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=exp["symbol"],
+                name=exp["name"],
+                description=exp["description"],
+            )
+            market.exports.add(trade_good)
+
+        for ex in data["exchange"]:
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=ex["symbol"],
+                name=ex["name"],
+                description=ex["description"],
+            )
+            market.exchange.add(trade_good)
+
+        if "transactions" in data:
+            for trans in data["transactions"]:
+                # FIXME: we assume that the TradeGood exists at this point.
+                trade_good = TradeGood.objects.get(symbol=trans["tradeSymbol"])
+                transaction, created = Transaction.objects.get_or_create(
+                    market=market,
+                    ship_symbol=trans["shipSymbol"],
+                    trade_good=trade_good,
+                    type=trans["type"],
+                    units=trans["units"],
+                    price_per_unit=trans["pricePerUnit"],
+                    total_price=trans["totalPrice"],
+                    timestamp=trans["timestamp"],
+                )
+
+        if "tradeGoods" in data:
+            for good in data["tradeGoods"]:
+                trade_good = TradeGood.objects.get(symbol=good["symbol"])
+                if not MarketTradeGood.objects.filter(market=market, trade_good=trade_good, type=good["type"]).exists():
+                    market_trade_good = MarketTradeGood(
+                        market=market,
+                        trade_good=trade_good,
+                        type=good["type"],
+                    )
+                else:
+                    market_trade_good = MarketTradeGood.objects.get(market=market, trade_good=trade_good, type=good["type"])
+
+                market_trade_good.trade_volume = good["tradeVolume"]
+                market_trade_good.supply = good["supply"]
+                market_trade_good.purchase_price = good["purchasePrice"]
+                market_trade_good.sell_price = good["sellPrice"]
+                if "activity" in good:  # Type EXCHANGE goods have no activity
+                    market_trade_good.activity = good["activity"]
+
+        print(f"Updated market {market}")
