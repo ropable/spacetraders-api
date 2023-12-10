@@ -57,11 +57,14 @@ class System(models.Model):
         unique_together = ("symbol", "sector")
 
     def __str__(self):
-        return f"{self.symbol} ({self.type})"
+        return f"{self.symbol} ({self.get_type_display()})"
 
     @property
     def coords(self):
         return (self.x, self.y)
+
+    def get_type_display(self):
+        return self.type.replace("_", " ").capitalize()
 
 
 class WaypointTrait(models.Model):

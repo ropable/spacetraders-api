@@ -8,6 +8,7 @@ from .models import (
     Ship,
     Contract,
     Market,
+    TradeGood,
 )
 
 
@@ -38,13 +39,14 @@ class AgentAdmin(ReadOnlyModelAdmin):
 @register(System)
 class SystemAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "sector", "type", "coords")
+    list_filter = ("type",)
     readonly_fields = [field.name for field in System._meta.concrete_fields]
 
 
 @register(Waypoint)
 class WaypointAdmin(ReadOnlyModelAdmin):
 
-    class WaypointTraitListFilter(SimpleListFilter):
+    class WaypointTraitFilter(SimpleListFilter):
         title = "trait"
         parameter_name = "trait"
 
@@ -56,9 +58,13 @@ class WaypointAdmin(ReadOnlyModelAdmin):
                 trait = WaypointTrait.objects.get(symbol=self.value())
                 return queryset.filter(traits__in=[trait])
 
-    list_display = ("symbol", "type", "system", "coords", "faction", "is_under_construction", "modified")
-    list_filter = ("type", WaypointTraitListFilter)
+    list_display = ("symbol", "type_display", "system", "coords", "faction", "is_under_construction", "modified")
+    list_filter = ("type", "system", WaypointTraitFilter)
     readonly_fields = [field.name for field in Waypoint._meta.concrete_fields]
+
+    @display(description="Type")
+    def type_display(self, obj):
+        return obj.get_type_display()
 
 
 @register(Ship)
@@ -75,7 +81,33 @@ class ContractAdmin(ReadOnlyModelAdmin):
 
 @register(Market)
 class MarketAdmin(ReadOnlyModelAdmin):
+
+    class ImportFilter(SimpleListFilter):
+        title = "import"
+        parameter_name = "import"
+
+        def lookups(self, request, model_admin):
+            return [(good.symbol, good.name) for good in TradeGood.objects.all()]
+
+        def queryset(self, request, queryset):
+            if self.value():
+                good = TradeGood.objects.get(symbol=self.value())
+                return queryset.filter(imports__in=[good])
+
+    class ExportFilter(SimpleListFilter):
+        title = "export"
+        parameter_name = "export"
+
+        def lookups(self, request, model_admin):
+            return [(good.symbol, good.name) for good in TradeGood.objects.all()]
+
+        def queryset(self, request, queryset):
+            if self.value():
+                good = TradeGood.objects.get(symbol=self.value())
+                return queryset.filter(exports__in=[good])
+
     list_display = ("waypoint", "exports_display", "imports_display", "exchange_display")
+    list_filter = (ExportFilter, ImportFilter)
     readonly_fields = [field.name for field in Market._meta.concrete_fields]
 
     @display(description="Exports")
