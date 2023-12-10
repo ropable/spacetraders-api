@@ -108,7 +108,10 @@ class Waypoint(models.Model):
         unique_together = ("symbol", "system")
 
     def __str__(self):
-        return f"{self.symbol} ({self.type})"
+        return f"{self.symbol} ({self.get_type_display()})"
+
+    def get_type_display(self):
+        return self.type.replace("_", " ").capitalize()
 
     @property
     def coords(self):
@@ -281,13 +284,80 @@ class TradeGood(models.Model):
 
 
 class Market(models.Model):
-    waypoint = models.ForeignKey(Waypoint, on_delete=models.PROTECT)
+    waypoint = models.OneToOneField(Waypoint, on_delete=models.PROTECT)
     exports = models.ManyToManyField(TradeGood, related_name="exports")
     imports = models.ManyToManyField(TradeGood, related_name="imports")
     exchange = models.ManyToManyField(TradeGood, related_name="exchange")
 
     def __str__(self):
         return str(self.waypoint)
+
+    def get_exports_display(self):
+        return ", ".join([exp.name for exp in self.exports.all()])
+
+    def get_imports_display(self):
+        return ", ".join([imp.name for imp in self.imports.all()])
+
+    def get_exchange_display(self):
+        return ", ".join([ex.name for ex in self.exchange.all()])
+
+    def update_market(self, data):
+        for imp in data["imports"]:
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=imp["symbol"],
+                name=imp["name"],
+                description=imp["description"],
+            )
+            self.imports.add(trade_good)
+
+        for exp in data["exports"]:
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=exp["symbol"],
+                name=exp["name"],
+                description=exp["description"],
+            )
+            self.exports.add(trade_good)
+
+        for ex in data["exchange"]:
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=ex["symbol"],
+                name=ex["name"],
+                description=ex["description"],
+            )
+            self.exchange.add(trade_good)
+
+        if "transactions" in data:
+            for trans in data["transactions"]:
+                trade_good = TradeGood.objects.get(symbol=trans["tradeSymbol"])
+                transaction, created = Transaction.objects.get_or_create(
+                    market=self,
+                    ship_symbol=trans["shipSymbol"],
+                    trade_good=trade_good,
+                    type=trans["type"],
+                    units=trans["units"],
+                    price_per_unit=trans["pricePerUnit"],
+                    total_price=trans["totalPrice"],
+                    timestamp=trans["timestamp"],
+                )
+
+        if "tradeGoods" in data:
+            for good in data["tradeGoods"]:
+                trade_good = TradeGood.objects.get(symbol=good["symbol"])
+                if not MarketTradeGood.objects.filter(market=self, trade_good=trade_good, type=good["type"]).exists():
+                    market_trade_good = MarketTradeGood(
+                        market=self,
+                        trade_good=trade_good,
+                        type=good["type"],
+                    )
+                else:
+                    market_trade_good = MarketTradeGood.objects.get(market=self, trade_good=trade_good, type=good["type"])
+
+                market_trade_good.trade_volume = good["tradeVolume"]
+                market_trade_good.supply = good["supply"]
+                market_trade_good.purchase_price = good["purchasePrice"]
+                market_trade_good.sell_price = good["sellPrice"]
+                if "activity" in good:  # Type EXCHANGE goods have no activity
+                    market_trade_good.activity = good["activity"]
 
 
 class Transaction(models.Model):

@@ -1,4 +1,4 @@
-from django.contrib.admin import register, ModelAdmin, SimpleListFilter
+from django.contrib.admin import register, display, ModelAdmin, SimpleListFilter
 from .models import (
     Agent,
     Faction,
@@ -7,6 +7,7 @@ from .models import (
     WaypointTrait,
     Ship,
     Contract,
+    Market,
 )
 
 
@@ -70,3 +71,21 @@ class ShipAdmin(ReadOnlyModelAdmin):
 class ContractAdmin(ReadOnlyModelAdmin):
     list_display = ("contract_id", "faction", "type", "terms_deadline", "accepted", "fulfilled", "expiration", "modified")
     readonly_fields = [field.name for field in Contract._meta.concrete_fields] + ["required_goods"]
+
+
+@register(Market)
+class MarketAdmin(ReadOnlyModelAdmin):
+    list_display = ("waypoint", "exports_display", "imports_display", "exchange_display")
+    readonly_fields = [field.name for field in Market._meta.concrete_fields]
+
+    @display(description="Exports")
+    def exports_display(self, obj):
+        return obj.get_exports_display()
+
+    @display(description="Imports")
+    def imports_display(self, obj):
+        return obj.get_imports_display()
+
+    @display(description="Exchange")
+    def exchange_display(self, obj):
+        return obj.get_exchange_display()
