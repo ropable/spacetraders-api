@@ -13,3 +13,10 @@ set_agent(client)
 populate_ships(client)
 populate_contracts(client)
 ```
+
+# Environment variables
+
+    API_TOKEN
+    TZ
+    DEBUG
+    DATABASE_URL

@@ -46,7 +46,25 @@ class Client(Session):
         resp.raise_for_status()
         return resp.json()
 
-    # TODO: register_agent
+    def register_agent(self, symbol: str, email: str = None, faction: str = "COSMIC"):
+        if self.token:
+            raise Exception("Already configured with token")
+
+        data = {
+            "faction": faction,
+            "symbol": symbol,
+        }
+        if email:
+            data["emai"] = email
+
+        resp = self.post(f"{self.api_url}/register", json=data)
+        resp.raise_for_status()
+        data = resp.json()["data"]
+
+        token = open("BEARER_TOKEN", "w")
+        token.write(data["token"])
+        print("Token written to file")
+        return data
 
     # ----------------------------------------------------------------
     # Agents endpoints
