@@ -1,9 +1,10 @@
-from django.contrib.admin import register, ModelAdmin
+from django.contrib.admin import register, ModelAdmin, SimpleListFilter
 from .models import (
     Agent,
     Faction,
     System,
     Waypoint,
+    WaypointTrait,
     Ship,
     Contract,
 )
@@ -41,8 +42,21 @@ class SystemAdmin(ReadOnlyModelAdmin):
 
 @register(Waypoint)
 class WaypointAdmin(ReadOnlyModelAdmin):
+
+    class WaypointTraitListFilter(SimpleListFilter):
+        title = "trait"
+        parameter_name = "trait"
+
+        def lookups(self, request, model_admin):
+            return [(wt.symbol, wt.name) for wt in WaypointTrait.objects.all()]
+
+        def queryset(self, request, queryset):
+            if self.value():
+                trait = WaypointTrait.objects.get(symbol=self.value())
+                return queryset.filter(traits__in=[trait])
+
     list_display = ("symbol", "type", "system", "coords", "faction", "is_under_construction", "modified")
-    list_filter = ("type",)
+    list_filter = ("type", WaypointTraitListFilter)
     readonly_fields = [field.name for field in Waypoint._meta.concrete_fields]
 
 

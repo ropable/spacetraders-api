@@ -198,7 +198,7 @@ class Ship(models.Model):
     mounts = models.ManyToManyField(ShipMount)
     cargo_capacity = models.PositiveIntegerField(default=0)
     cargo_units = models.PositiveIntegerField(default=0)
-    fuel = models.JSONField(default=dict)  # TODO: dedicated model
+    fuel = models.JSONField(default=dict)
 
     class Meta:
         ordering = ("symbol",)
