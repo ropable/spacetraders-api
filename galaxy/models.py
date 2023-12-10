@@ -1,3 +1,4 @@
+from django.contrib.admin import display
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from math import dist
@@ -111,9 +112,11 @@ class Waypoint(models.Model):
         unique_together = ("symbol", "system")
 
     def __str__(self):
-        return f"{self.symbol} ({self.get_type_display()})"
+        return f"{self.symbol} ({self.type_display})"
 
-    def get_type_display(self):
+    @property
+    @display(description="type")
+    def type_display(self):
         return self.type.replace("_", " ").capitalize()
 
     @property
@@ -162,6 +165,15 @@ class ShipNav(models.Model):
 
     def __str__(self):
         return f"{self.status} ({self.route['arrival']}), {self.flight_mode}"
+
+    def update(self, data):
+        """Update from passed-in nav data."""
+        self.system = System.objects.get(symbol=data["systemSymbol"])
+        self.waypoint = Waypoint.objects.get(symbol=data["waypointSymbol"])
+        self.route = data["route"]
+        self.status = data["status"]
+        self.flight_mode = data["flightMode"]
+        self.save()
 
 
 class ShipModule(models.Model):
@@ -295,38 +307,33 @@ class Market(models.Model):
     def __str__(self):
         return str(self.waypoint)
 
-    def get_exports_display(self):
+    @property
+    @display(description="exports")
+    def exports_display(self):
         return ", ".join([exp.name for exp in self.exports.all()])
 
-    def get_imports_display(self):
+    @property
+    @display(description="imports")
+    def imports_display(self):
         return ", ".join([imp.name for imp in self.imports.all()])
 
-    def get_exchange_display(self):
+    @property
+    @display(description="exchange")
+    def exchange_display(self):
         return ", ".join([ex.name for ex in self.exchange.all()])
 
-    def update_market(self, data):
+    def update(self, data):
+        """Update from passed-in data."""
         for imp in data["imports"]:
-            trade_good, created = TradeGood.objects.get_or_create(
-                symbol=imp["symbol"],
-                name=imp["name"],
-                description=imp["description"],
-            )
+            trade_good = TradeGood.objects.get(symbol=imp["symbol"])
             self.imports.add(trade_good)
 
         for exp in data["exports"]:
-            trade_good, created = TradeGood.objects.get_or_create(
-                symbol=exp["symbol"],
-                name=exp["name"],
-                description=exp["description"],
-            )
+            trade_good = TradeGood.objects.get(symbol=exp["symbol"])
             self.exports.add(trade_good)
 
         for ex in data["exchange"]:
-            trade_good, created = TradeGood.objects.get_or_create(
-                symbol=ex["symbol"],
-                name=ex["name"],
-                description=ex["description"],
-            )
+            trade_good = TradeGood.objects.get(symbol=ex["symbol"])
             self.exchange.add(trade_good)
 
         if "transactions" in data:
@@ -361,6 +368,7 @@ class Market(models.Model):
                 market_trade_good.sell_price = good["sellPrice"]
                 if "activity" in good:  # Type EXCHANGE goods have no activity
                     market_trade_good.activity = good["activity"]
+                market_trade_good.save()
 
 
 class Transaction(models.Model):
@@ -390,3 +398,11 @@ class MarketTradeGood(models.Model):
 
     class Meta:
         unique_together = ("market", "trade_good", "type")
+
+    def __str__(self):
+        return f"{self.market.waypoint.symbol} - {self.trade_good} ({self.type.lower()})"
+
+    @property
+    @display(description="waypoint")
+    def waypoint_display(self):
+        return str(self.market.waypoint)

@@ -1,4 +1,4 @@
-from django.contrib.admin import register, display, ModelAdmin, SimpleListFilter
+from django.contrib.admin import register, ModelAdmin, SimpleListFilter
 from .models import (
     Agent,
     Faction,
@@ -9,6 +9,7 @@ from .models import (
     Contract,
     Market,
     TradeGood,
+    MarketTradeGood,
 )
 
 
@@ -62,10 +63,6 @@ class WaypointAdmin(ReadOnlyModelAdmin):
     list_filter = ("type", "system", WaypointTraitFilter)
     readonly_fields = [field.name for field in Waypoint._meta.concrete_fields]
 
-    @display(description="Type")
-    def type_display(self, obj):
-        return obj.get_type_display()
-
 
 @register(Ship)
 class ShipAdmin(ReadOnlyModelAdmin):
@@ -110,14 +107,10 @@ class MarketAdmin(ReadOnlyModelAdmin):
     list_filter = (ExportFilter, ImportFilter)
     readonly_fields = [field.name for field in Market._meta.concrete_fields]
 
-    @display(description="Exports")
-    def exports_display(self, obj):
-        return obj.get_exports_display()
 
-    @display(description="Imports")
-    def imports_display(self, obj):
-        return obj.get_imports_display()
+@register(MarketTradeGood)
+class MarketTradeGoodAdmin(ReadOnlyModelAdmin):
 
-    @display(description="Exchange")
-    def exchange_display(self, obj):
-        return obj.get_exchange_display()
+    list_display = ("waypoint_display", "trade_good", "type", "supply", "activity", "purchase_price", "sell_price")
+    list_filter = ("type", "supply", "activity")
+    readonly_fields = [field.name for field in MarketTradeGood._meta.concrete_fields]
