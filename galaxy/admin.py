@@ -64,6 +64,12 @@ class WaypointAdmin(ReadOnlyModelAdmin):
     readonly_fields = [field.name for field in Waypoint._meta.concrete_fields]
 
 
+@register(WaypointTrait)
+class WaypointTraitAdmin(ReadOnlyModelAdmin):
+    list_display = ("symbol", "name", "description")
+    readonly_fields = [field.name for field in WaypointTrait._meta.concrete_fields]
+
+
 @register(Ship)
 class ShipAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "frame_name", "modified")
@@ -74,6 +80,12 @@ class ShipAdmin(ReadOnlyModelAdmin):
 class ContractAdmin(ReadOnlyModelAdmin):
     list_display = ("contract_id", "faction", "type", "terms_deadline", "accepted", "fulfilled", "expiration", "modified")
     readonly_fields = [field.name for field in Contract._meta.concrete_fields] + ["required_goods"]
+
+
+@register(TradeGood)
+class TradeGoodAdmin(ReadOnlyModelAdmin):
+    list_display = ("symbol", "name", "description")
+    readonly_fields = [field.name for field in TradeGood._meta.concrete_fields]
 
 
 @register(Market)
