@@ -154,11 +154,11 @@ class Waypoint(models.Model):
             return False
         return dist((self.x, self.y), (coords[0], coords[1]))
 
-    def get_traits(self):
+    def traits_display(self):
         if self.traits:
-            return ', '.join([t.name for t in self.traits.all()])
+            return ", ".join([t.name for t in self.traits.all()])
         else:
-            return None
+            return ""
 
 
 class Chart(models.Model):
@@ -271,6 +271,64 @@ class Ship(models.Model):
         data = client.dock_ship(self.symbol)
         self.nav.update(data["nav"])
 
+    def flight_mode(self, client, mode: str):
+        """Set the flight mode for this ship."""
+        if mode not in ["DRIFT", "STEALTH", "CRUISE", "BURN"]:
+            return None
+
+        data = client.ship_flight_mode(self.symbol, mode)
+        # Update ship.nav
+        self.nav.update(data)
+
+        return f"{self} flight mode set to {mode}"
+
+    def navigate(self, client, waypoint_symbol):
+        if not self.is_in_orbit:
+            self.orbit(client)
+
+        data = client.navigate_ship(self.symbol, waypoint_symbol)
+        if "error" in data:
+            print(data["error"]["message"])
+            return False
+
+        # data contains: fuel, nav
+        self.fuel = data["fuel"]
+        self.save()
+        # Update ship.nav
+        self.nav.update(data["nav"])
+
+        return f"{self} en route to {self.nav.route['destination']['symbol']}, arrival in {self.nav.arrival_display()}"
+
+    def refuel(self, client, units: int=None, from_cargo: bool=False):
+        if not self.is_docked:
+            self.dock(client)
+
+        data = client.refuel_ship(self.symbol, units, from_cargo)
+        if "error" in data:
+            print(data["error"]["message"])
+            return False
+
+        # data contains: agent, fuel, transaction
+        self.fuel = data["fuel"]
+        self.save()
+        # Update agent.
+        self.agent.update(data["agent"])
+        # Create a transaction
+        market = Market.objects.get(waypoint__symbol=data["transaction"]["waypointSymbol"])
+        trade_good = TradeGood.objects.get(symbol=data["transaction"]["tradeSymbol"])
+        Transaction.objects.create(
+            market=market,
+            ship_symbol=data["transaction"]["shipSymbol"],
+            trade_good=trade_good,
+            type=data["transaction"]["type"],
+            units=data["transaction"]["units"],
+            price_per_unit=data["transaction"]["pricePerUnit"],
+            total_price=data["transaction"]["totalPrice"],
+            timestamp=data["transaction"]["timestamp"],
+        )
+
+        return f"{self} refueled {data['transaction']['units']} units"
+
     def update(self, data):
         """Update ship details from passed-in ship data.
         Note that we update cargo in a separate method.
@@ -333,37 +391,73 @@ class Ship(models.Model):
         self.cargo_units = data["units"]
         self.save()
 
-        for good in data["inventory"]:
-            if not CargoType.objects.filter(symbol=good["symbol"]).exists():
-                cargo_type = CargoType.objects.create(
-                    symbol=good["symbol"],
-                    name=good["name"],
-                    description=good["description"],
-                )
-            else:
-                cargo_type = CargoType.objects.get(symbol=good["symbol"])
+        # If the ship's cargo inventory is empty, clear it.
+        if not data["inventory"]:
+            ShipCargoItem.objects.filter(ship=self).delete()
+        else:
+            for good in data["inventory"]:
+                if not CargoType.objects.filter(symbol=good["symbol"]).exists():
+                    cargo_type = CargoType.objects.create(
+                        symbol=good["symbol"],
+                        name=good["name"],
+                        description=good["description"],
+                    )
+                else:
+                    cargo_type = CargoType.objects.get(symbol=good["symbol"])
 
-            # New inventory good.
-            if not ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
-                item = ShipCargoItem.objects.create(
-                    type=cargo_type,
-                    ship=self,
-                    units=good["units"],
-                )
-            elif ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
-                # Update the number of units if required.
-                item = ShipCargoItem.objects.get(type=cargo_type, ship=self)
-                if item.units != good["units"]:
-                    item.units = good["units"]
-                    item.save()
+                # New inventory good.
+                if not ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
+                    item = ShipCargoItem.objects.create(
+                        type=cargo_type,
+                        ship=self,
+                        units=good["units"],
+                    )
+                elif ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
+                    # Update the number of units if required.
+                    item = ShipCargoItem.objects.get(type=cargo_type, ship=self)
+                    if item.units != good["units"]:
+                        item.units = good["units"]
+                        item.save()
 
-            # Check the set of ship cargo items. If there is anything not currently in inventory,
-            # zero out the balance of that good.
-            current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["inventory"]])
-            not_held = ShipCargoItem.objects.filter(ship=self).exclude(type__in=current_cargo)
-            for item in not_held:
-                item.units = 0
-                item.save()
+                # Check the set of ship cargo items. If there is anything not currently in inventory,
+                # delete any of those ShipCargoItem objects.
+                current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["inventory"]])
+                ShipCargoItem.objects.filter(ship=self).exclude(type__in=current_cargo).delete()
+
+    def purchase_cargo(self, client, commodity, units):
+        if not self.is_docked:
+            self.dock(client)
+        data = client.purchase_cargo(self.symbol, commodity, units)
+        if "error" in data:
+            print(data["error"]["message"])
+            return False
+
+        # data contains: agent, cargo, transaction
+        self.update_cargo(data["cargo"])
+        # Update agent.
+        self.agent.update(data["agent"])
+        # Create a transaction
+        market = Market.objects.get(waypoint__symbol=data["transaction"]["waypointSymbol"])
+        trade_good = TradeGood.objects.get(symbol=data["transaction"]["tradeSymbol"])
+        transaction = Transaction.objects.create(
+            market=market,
+            ship_symbol=data["transaction"]["shipSymbol"],
+            trade_good=trade_good,
+            type=data["transaction"]["type"],
+            units=data["transaction"]["units"],
+            price_per_unit=data["transaction"]["pricePerUnit"],
+            total_price=data["transaction"]["totalPrice"],
+            timestamp=data["transaction"]["timestamp"],
+        )
+
+        return f"{self} purchased {transaction.units} units of {trade_good} for {transaction.total_price}"
+
+    def refresh(self, client):
+        data = client.get_ship(self.symbol)
+        self.update(data)
+        self.update_cargo(data["cargo"])
+
+        return f"{self} data refreshed from server"
 
 
 class CargoType(models.Model):
@@ -395,6 +489,9 @@ class ShipCargoItem(models.Model):
         if not self.ship.nav.waypoint.is_market or not self.ship.is_docked or self.units == 0:
             return
 
+        if not units:
+            units = self.units
+
         data = client.sell_cargo(self.ship.symbol, self.type.symbol, units)
         if "error" in data:
             print(data["error"]["message"])
@@ -418,7 +515,7 @@ class ShipCargoItem(models.Model):
             timestamp=data["transaction"]["timestamp"],
         )
 
-        return transaction
+        return f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}"
 
 
 class Contract(models.Model):

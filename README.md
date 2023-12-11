@@ -34,7 +34,7 @@ Inputs:
 
 Process:
 
-- Navigate to source (pause until cooldown)
+- Navigate to source (pause until arrival)
 - Dock
 - Refuel
 - Extract ore (pause until cooldown)
@@ -43,9 +43,9 @@ Process:
 - Dock
 - Refuel
 - Deliver cargo to contract
-- Check delivery terms, fulfill if required, loop to start
+- Check delivery terms, fulfill if required, loop to source navigate
 
 Problems:
 
-[ ] Find suitable source waypoint
+[ ] Find suitable source waypoint (closest with trait)
 [ ] Loop an action with a cooldown period
