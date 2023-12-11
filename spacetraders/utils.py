@@ -224,12 +224,7 @@ def populate_ships(client):
 
             # Update ship.nav
             nav = ship.nav
-            nav.system = System.objects.get(symbol=data["nav"]["systemSymbol"])
-            nav.waypoint = Waypoint.objects.get(symbol=data["nav"]["waypointSymbol"])
-            nav.route = data["nav"]["route"]
-            nav.status = data["nav"]["status"]
-            nav.flight_mode = data["nav"]["flightMode"]
-            nav.save()
+            nav.update(data["nav"])
 
         ship.modules.clear()
         for module_data in data["modules"]:
@@ -357,5 +352,5 @@ def populate_markets(client):
     for wp in market_waypoints:
         data = client.get_market(wp.system.symbol, wp.symbol)
         market, created = Market.objects.get_or_create(waypoint=wp)
-        market.update_market(data)
+        market.update(data)
         print(f"Updated market {market}")

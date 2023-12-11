@@ -47,6 +47,8 @@ class Client(Session):
         return resp.json()
 
     def register_agent(self, symbol: str, email: str = None, faction: str = "COSMIC"):
+        """Register a new player agent and return an authentication token.
+        """
         if self.token:
             raise Exception("Already configured with token")
 
@@ -92,7 +94,7 @@ class Client(Session):
         return agents
 
     def get_agent(self):
-        """Get a single agent's details from the game server.
+        """Get the player agent's details from the game server.
         """
         resp = self.get(f"{self.api_url}/my/agent")
         resp.raise_for_status()
@@ -104,7 +106,7 @@ class Client(Session):
     @sleep_and_retry
     @limits(calls=30, period=60)
     def list_contracts(self):
-        """List all contract details.
+        """List all player contracts.
         """
         params = {
             "limit": 20,
@@ -178,7 +180,7 @@ class Client(Session):
     @sleep_and_retry
     @limits(calls=30, period=60)
     def list_ships(self):
-        """List all of the ships under your ownership.
+        """List all of the ships under the player's ownership.
         """
         params = {
             "limit": 20,
@@ -198,7 +200,7 @@ class Client(Session):
         return ships
 
     def get_ship(self, symbol: str):
-        """Get the details of a single ship under your ownership.
+        """Get the details of a single ship under the player's ownership.
         """
         resp = self.get(f"{self.api_url}/my/ships/{symbol}")
         resp.raise_for_status()

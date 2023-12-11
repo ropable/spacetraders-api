@@ -325,19 +325,32 @@ class Market(models.Model):
     def update(self, data):
         """Update from passed-in data."""
         for imp in data["imports"]:
-            trade_good = TradeGood.objects.get(symbol=imp["symbol"])
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=imp["symbol"],
+                name=imp["name"],
+                description=imp["description"],
+            )
             self.imports.add(trade_good)
 
         for exp in data["exports"]:
-            trade_good = TradeGood.objects.get(symbol=exp["symbol"])
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=exp["symbol"],
+                name=exp["name"],
+                description=exp["description"],
+            )
             self.exports.add(trade_good)
 
         for ex in data["exchange"]:
-            trade_good = TradeGood.objects.get(symbol=ex["symbol"])
+            trade_good, created = TradeGood.objects.get_or_create(
+                symbol=ex["symbol"],
+                name=ex["name"],
+                description=ex["description"],
+            )
             self.exchange.add(trade_good)
 
         if "transactions" in data:
             for trans in data["transactions"]:
+                # FIXME: assumption here is that the TradeGood already exists.
                 trade_good = TradeGood.objects.get(symbol=trans["tradeSymbol"])
                 transaction, created = Transaction.objects.get_or_create(
                     market=self,
