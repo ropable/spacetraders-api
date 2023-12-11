@@ -8,10 +8,6 @@ from galaxy.models import (
     WaypointModifier,
     Ship,
     ShipNav,
-    ShipMount,
-    ShipModule,
-    CargoType,
-    ShipCargoItem,
     Contract,
     ContractDeliverGood,
     Market,
@@ -212,90 +208,9 @@ def populate_ships(client):
             print(f"Created {ship}")
         else:
             ship = Ship.objects.get(symbol=data["symbol"])
-            ship.crew = data["crew"]
-            ship.frame = data["frame"]
-            ship.reactor = data["reactor"]
-            ship.engine = data["engine"]
-            ship.cooldown = data["cooldown"]
-            ship.cargo_capacity = data["cargo"]["capacity"]
-            ship.cargo_units = data["cargo"]["units"]
-            ship.fuel = data["fuel"]
-            ship.save()
 
-            # Update ship.nav
-            nav = ship.nav
-            nav.update(data["nav"])
-
-        ship.modules.clear()
-        for module_data in data["modules"]:
-            if not ShipModule.objects.filter(symbol=module_data["symbol"]).exists():
-                module = ShipModule(
-                    symbol=module_data["symbol"],
-                    name=module_data["name"],
-                    description=module_data["description"],
-                )
-                if "capacity" in module_data:
-                    module.capacity = module_data["capacity"]
-                if "range" in module_data:
-                    module.range = module_data["range"]
-                if "requirements" in module_data:
-                    module.requirements = module_data["requirements"]
-                module.save()
-            else:
-                module = ShipModule.objects.get(symbol=module_data["symbol"])
-            ship.modules.add(module)
-
-        ship.mounts.clear()
-        for mount_data in data["mounts"]:
-            if not ShipMount.objects.filter(symbol=mount_data["symbol"]).exists():
-                mount = ShipMount(
-                    symbol=mount_data["symbol"],
-                    name=mount_data["name"],
-                    description=mount_data["description"],
-                )
-                if "strength" in mount_data:
-                    mount.strength = mount_data["strength"]
-                if "deposits" in mount_data:
-                    mount.deposits = mount_data["deposits"]
-                if "requirements" in mount_data:
-                    mount.requirements = mount_data["requirements"]
-                mount.save()
-            else:
-                mount = ShipMount.objects.get(symbol=mount_data["symbol"])
-            ship.mounts.add(mount)
-
-        for good in data["cargo"]["inventory"]:
-            if not CargoType.objects.filter(symbol=good["symbol"]).exists():
-                cargo_type = CargoType.objects.create(
-                    symbol=good["symbol"],
-                    name=good["name"],
-                    description=good["description"],
-                )
-            else:
-                cargo_type = CargoType.objects.get(symbol=good["symbol"])
-
-            # New inventory good.
-            if not ShipCargoItem.objects.filter(type=cargo_type, ship=ship).exists():
-                item = ShipCargoItem.objects.create(
-                    type=cargo_type,
-                    ship=ship,
-                    units=good["units"],
-                )
-            elif ShipCargoItem.objects.filter(type=cargo_type, ship=ship).exists():
-                # Update the number of units if required.
-                item = ShipCargoItem.objects.get(type=cargo_type, ship=ship)
-                if item.units != good["units"]:
-                    item.units = good["units"]
-                    item.save()
-
-            # Check the set of ship cargo items. If there is anything not currently in inventory,
-            # zero out the balance.
-            current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["cargo"]["inventory"]])
-            not_held = ShipCargoItem.objects.filter(ship=ship).exclude(type__in=current_cargo)
-            for item in not_held:
-                item.units = 0
-                item.save()
-
+        ship.update(data)
+        ship.update_cargo(data)
         print(f"Refreshed data for {ship}")
 
 

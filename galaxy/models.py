@@ -1,7 +1,13 @@
+from datetime import datetime, timezone
+from django.conf import settings
 from django.contrib.admin import display
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from humanize import naturaldelta
 from math import dist
+from zoneinfo import ZoneInfo
+
+TZ = ZoneInfo(settings.TIME_ZONE)
 
 
 class FactionTrait(models.Model):
@@ -43,6 +49,12 @@ class Agent(models.Model):
 
     def __str__(self):
         return f"{self.symbol} ({self.starting_faction})"
+
+    def update(self, data):
+        """Update object from passed-in data."""
+        self.credits = data["credits"]
+        self.ship_count = data["shipCount"]
+        self.save()
 
 
 class System(models.Model):
@@ -175,6 +187,14 @@ class ShipNav(models.Model):
         self.flight_mode = data["flightMode"]
         self.save()
 
+    def arrival_display(self):
+        """Returns a human-readable string for the arrival time of a ship in transit."""
+        if self.status != "IN_TRANSIT":
+            return ""
+        now = datetime.now(timezone.utc)
+        arrival = datetime.fromisoformat(self.route["arrival"])
+        return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})"
+
 
 class ShipModule(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -229,6 +249,122 @@ class Ship(models.Model):
     def frame_name(self):
         return self.frame["name"]
 
+    @property
+    def is_docked(self):
+        return self.nav.status == "DOCKED"
+
+    def orbit(self, client):
+        if not self.is_docked:
+            return
+
+        data = client.orbit_ship(self.symbol)
+        self.nav.update(data["nav"])
+
+    @property
+    def is_in_orbit(self):
+        return self.nav.status == "IN_ORBIT"
+
+    def dock(self, client):
+        if not self.is_in_orbit:
+            return
+
+        data = client.dock_ship(self.symbol)
+        self.nav.update(data["nav"])
+
+    def update(self, data):
+        """Update ship details from passed-in ship data.
+        Note that we update cargo in a separate method.
+        """
+        self.crew = data["crew"]
+        self.frame = data["frame"]
+        self.reactor = data["reactor"]
+        self.engine = data["engine"]
+        self.cooldown = data["cooldown"]
+        self.fuel = data["fuel"]
+        self.save()
+
+        # Update ship.nav
+        self.nav.update(data["nav"])
+
+        # Update modules
+        self.modules.clear()
+        for module_data in data["modules"]:
+            if not ShipModule.objects.filter(symbol=module_data["symbol"]).exists():
+                module = ShipModule(
+                    symbol=module_data["symbol"],
+                    name=module_data["name"],
+                    description=module_data["description"],
+                )
+                if "capacity" in module_data:
+                    module.capacity = module_data["capacity"]
+                if "range" in module_data:
+                    module.range = module_data["range"]
+                if "requirements" in module_data:
+                    module.requirements = module_data["requirements"]
+                module.save()
+            else:
+                module = ShipModule.objects.get(symbol=module_data["symbol"])
+            self.modules.add(module)
+
+        # Update mounts
+        self.mounts.clear()
+        for mount_data in data["mounts"]:
+            if not ShipMount.objects.filter(symbol=mount_data["symbol"]).exists():
+                mount = ShipMount(
+                    symbol=mount_data["symbol"],
+                    name=mount_data["name"],
+                    description=mount_data["description"],
+                )
+                if "strength" in mount_data:
+                    mount.strength = mount_data["strength"]
+                if "deposits" in mount_data:
+                    mount.deposits = mount_data["deposits"]
+                if "requirements" in mount_data:
+                    mount.requirements = mount_data["requirements"]
+                mount.save()
+            else:
+                mount = ShipMount.objects.get(symbol=mount_data["symbol"])
+            self.mounts.add(mount)
+
+    def update_cargo(self, data):
+        """Update ship cargo from passed-in data.
+        """
+        self.cargo_capacity = data["capacity"]
+        self.cargo_units = data["units"]
+        self.save()
+
+        for good in data["inventory"]:
+            if not CargoType.objects.filter(symbol=good["symbol"]).exists():
+                cargo_type = CargoType.objects.create(
+                    symbol=good["symbol"],
+                    name=good["name"],
+                    description=good["description"],
+                )
+            else:
+                cargo_type = CargoType.objects.get(symbol=good["symbol"])
+
+            # New inventory good.
+            if not ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
+                item = ShipCargoItem.objects.create(
+                    type=cargo_type,
+                    ship=self,
+                    units=good["units"],
+                )
+            elif ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
+                # Update the number of units if required.
+                item = ShipCargoItem.objects.get(type=cargo_type, ship=self)
+                if item.units != good["units"]:
+                    item.units = good["units"]
+                    item.save()
+
+            # Check the set of ship cargo items. If there is anything not currently in inventory,
+            # zero out the balance of that good.
+            current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["inventory"]])
+            not_held = ShipCargoItem.objects.filter(ship=self).exclude(type__in=current_cargo)
+            for item in not_held:
+                item.units = 0
+                item.save()
+
 
 class CargoType(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -251,7 +387,38 @@ class ShipCargoItem(models.Model):
         unique_together = ("type", "ship")
 
     def __str__(self):
-        return f"{self.units} units of {self.type}"
+        return f"{self.units} units of {self.type} ({self.ship.symbol})"
+
+    def sell(self, client, units=None):
+        """Sell this cargo at the ship's current location."""
+        # Prevent trying to sell at an invalid location.
+        if not self.ship.nav.waypoint.is_market or not self.ship.is_docked or self.units == 0:
+            return
+
+        data = client.sell_cargo(self.ship.symbol, self.type.symbol, units)
+        if "error" in data:
+            print(data["error"]["message"])
+            return False
+
+        # data contains: agent, cargo, transaction
+        self.ship.update_cargo(data["cargo"])
+        # Update agent.
+        self.ship.agent.update(data["agent"])
+        # Create a transaction for the market
+        market = Market.objects.get(waypoint__symbol=data["transaction"]["waypointSymbol"])
+        trade_good = TradeGood.objects.get(symbol=data["transaction"]["tradeSymbol"])
+        transaction = Transaction.objects.create(
+            market=market,
+            ship_symbol=data["transaction"]["shipSymbol"],
+            trade_good=trade_good,
+            type=data["transaction"]["type"],
+            units=data["transaction"]["units"],
+            price_per_unit=data["transaction"]["pricePerUnit"],
+            total_price=data["transaction"]["totalPrice"],
+            timestamp=data["transaction"]["timestamp"],
+        )
+
+        return transaction
 
 
 class Contract(models.Model):
@@ -351,6 +518,7 @@ class Market(models.Model):
         if "transactions" in data:
             for trans in data["transactions"]:
                 # FIXME: assumption here is that the TradeGood already exists.
+                # Possibly adjust model to allow null name & description field.
                 trade_good = TradeGood.objects.get(symbol=trans["tradeSymbol"])
                 transaction, created = Transaction.objects.get_or_create(
                     market=self,
@@ -396,6 +564,9 @@ class Transaction(models.Model):
 
     class Meta:
         ordering = ("timestamp",)
+
+    def __str__(self):
+        return f"{self.ship_symbol} {self.type.lower()} {self.units} {self.trade_good} for {self.total_price}"
 
 
 class MarketTradeGood(models.Model):

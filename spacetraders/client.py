@@ -125,22 +125,46 @@ class Client(Session):
 
         return contracts
 
-    def get_contract(self, contract_id):
+    def get_contract(self, contract_id: str):
         """Get a single contract's details.
         """
         resp = self.get(f"{self.api_url}/my/contracts/{contract_id}")
         resp.raise_for_status()
         return resp.json()["data"]
 
-    def accept_contract(self, contract_id):
+    def accept_contract(self, contract_id: str):
         """Accept a single contract.
         """
         resp = self.post(f"{self.api_url}/my/contracts/{contract_id}/accept")
         resp.raise_for_status()
         return resp.json()["data"]
 
-    # TODO: deliver_cargo_to_contract
-    # TODO: fulfill_contract
+    def deliver_cargo_to_contract(self, contract_id: str, ship_symbol: str, trade_symbol: str, units: int):
+        """Deliver cargo to a contract.
+        """
+        data = {
+            "shipSymbol": ship_symbol,
+            "tradeSymbol": trade_symbol,
+            "units": units,
+        }
+        resp = self.post(f"{self.api_url}/my/contracts/{contract_id}/deliver", json=data)
+        try:
+            resp.raise_for_status()
+            return resp.json()["data"]
+        except:
+            # If the transaction fails, return the error payload.
+            return resp.json()
+
+    def fulfill_contract(self, contract_id: str):
+        """Fulfill a contract.
+        """
+        resp = self.post(f"{self.api_url}/my/contracts/{contract_id}/accept")
+        try:
+            resp.raise_for_status()
+            return resp.json()["data"]
+        except:
+            # If the transaction fails, return the error payload.
+            return resp.json()
 
     # ----------------------------------------------------------------
     # Factions endpoints
@@ -260,7 +284,7 @@ class Client(Session):
             resp.raise_for_status()
             return resp.json()["data"]
         except:
-            # If the transaction failss, return the error payload.
+            # If the transaction fails, return the error payload.
             return resp.json()
 
     def sell_cargo(self, symbol: str, commodity: str, units: int):
@@ -276,7 +300,7 @@ class Client(Session):
             resp.raise_for_status()
             return resp.json()["data"]
         except:
-            # If the transaction failss, return the error payload.
+            # If the transaction fails, return the error payload.
             return resp.json()
 
     def purchase_cargo(self, symbol: str, commodity: str, units: int):
@@ -292,7 +316,7 @@ class Client(Session):
             resp.raise_for_status()
             return resp.json()["data"]
         except:
-            # If the transaction failss, return the error payload.
+            # If the transaction fails, return the error payload.
             return resp.json()
 
     # ----------------------------------------------------------------

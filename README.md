@@ -20,3 +20,32 @@ populate_contracts(client)
     TZ
     DEBUG
     DATABASE_URL
+
+# TODO list
+
+Automate mining procurement contract
+
+Inputs:
+
+- Required good(s)
+- Source
+- Destination
+- Ship
+
+Process:
+
+- Navigate to source (pause until cooldown)
+- Dock
+- Refuel
+- Extract ore (pause until cooldown)
+- Check cargo type and quantity, loop until full
+- Navigate to destination
+- Dock
+- Refuel
+- Deliver cargo to contract
+- Check delivery terms, fulfill if required, loop to start
+
+Problems:
+
+[ ] Find suitable source waypoint
+[ ] Loop an action with a cooldown period
