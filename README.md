@@ -21,9 +21,9 @@ populate_contracts(client)
     DEBUG
     DATABASE_URL
 
-# TODO list
+# TODOs
 
-Automate mining procurement contract
+## Automate mining procurement contract
 
 Inputs:
 
@@ -45,7 +45,6 @@ Process:
 - Deliver cargo to contract
 - Check delivery terms, fulfill if required, loop to source navigate
 
-Problems:
 
-[ ] Find suitable source waypoint (closest with trait)
-[ ] Loop an action with a cooldown period
+- [ ] Find suitable source waypoint (closest with trait)
+- [ ] Loop an action with a cooldown period

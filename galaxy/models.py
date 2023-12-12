@@ -213,8 +213,7 @@ class ShipMount(models.Model):
     name = models.CharField(max_length=128)
     description = models.TextField(null=True, blank=True)
     strength = models.PositiveIntegerField(default=0)
-    deposits = ArrayField(
-        base_field=models.CharField(max_length=32), blank=True, null=True)
+    deposits = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
     requirements = models.JSONField(default=dict)
 
     def __str__(self):
@@ -299,7 +298,7 @@ class Ship(models.Model):
 
         return f"{self} en route to {self.nav.route['destination']['symbol']}, arrival in {self.nav.arrival_display()}"
 
-    def refuel(self, client, units: int=None, from_cargo: bool=False):
+    def refuel(self, client, units: int = None, from_cargo: bool = False):
         if not self.is_docked:
             self.dock(client)
 
@@ -458,6 +457,34 @@ class Ship(models.Model):
         self.update_cargo(data["cargo"])
 
         return f"{self} data refreshed from server"
+
+    def find_destination(self, trait=None, type=None):
+        """Return a list of waypoints having the nominated trait, ordered by distance from this ship.
+        """
+        if not trait and not type:
+            return
+
+        waypoints = Waypoint.objects.all()
+
+        if trait:
+            try:
+                waypoint_trait = WaypointTrait.objects.get(symbol=trait)
+                waypoints = waypoints.filter(traits__in=[waypoint_trait])
+            except:
+                return False
+        if type:
+            try:
+                waypoints = waypoints.filter(type=type)
+            except:
+                return False
+
+        origin = self.nav.waypoint.coords
+        destinations = []
+        for wp in waypoints:
+            destinations.append((wp.distance(origin), wp))
+
+        destinations = sorted(destinations, key=lambda x: x[0])
+        return destinations
 
 
 class CargoType(models.Model):
@@ -687,3 +714,25 @@ class MarketTradeGood(models.Model):
     @display(description="waypoint")
     def waypoint_display(self):
         return str(self.market.waypoint)
+
+
+class Shipyard(models.Model):
+    waypoint = models.OneToOneField(Waypoint, on_delete=models.PROTECT)
+    ship_types = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
+    transactions = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
+    ships = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
+    modifications_fee = models.PositiveIntegerField(default=0)
+
+    def update(self):
+        # TODO
+        pass
+
+
+class Construction(models.Model):
+    waypoint = models.OneToOneField(Waypoint, on_delete=models.PROTECT)
+    materials = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
+    is_complete = models.BooleanField(default=False)
+
+    def update(self):
+        # TODO
+        pass
