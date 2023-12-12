@@ -210,7 +210,7 @@ def populate_ships(client):
             ship = Ship.objects.get(symbol=data["symbol"])
 
         ship.update(data)
-        ship.update_cargo(data)
+        ship.update_cargo(data["cargo"])
         print(f"Refreshed data for {ship}")
 
 
