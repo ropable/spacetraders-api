@@ -143,6 +143,11 @@ def populate_system(client, system_symbol):
             waypoint.modifiers.add(new_mod)
             print(f"{new_mod} modifer added to {waypoint}")
 
+    # Iterate through the data a second time, to fill any skipped attributes.
+    for waypoint_data in waypoints:
+        waypoint = Waypoint.objects.get(symbol=waypoint_data["symbol"])
+        waypoint.update(waypoint_data)
+
 
 def set_agent(client):
     """Save the player Agent to the database.

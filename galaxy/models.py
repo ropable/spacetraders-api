@@ -126,10 +126,43 @@ class Waypoint(models.Model):
     def __str__(self):
         return f"{self.symbol} ({self.type_display})"
 
+    def update(self, data):
+        """Update object from passed-in data."""
+        if "orbits" in data and data["orbits"]:
+            self.orbits = Waypoint.objects.get(symbol=data["orbits"])
+        if data["orbitals"]:
+            for orbital in data["orbitals"]:
+                waypoint = Waypoint.objects.get(symbol=orbital["symbol"])
+                waypoint.orbits = self
+                waypoint.save()
+        if data["traits"]:
+            for trait in data["traits"]:
+                self.traits.add(WaypointTrait.objects.get(symbol=trait["symbol"]))
+        if data["modifiers"]:
+            for mod in data["modifers"]:
+                self.modifiers.add(WaypointModifier.objects.get(symbol=mod["symbol"]))
+        if data["faction"]:
+            self.faction = Faction.objects.get(symbol=data["faction"]["symbol"])
+        if data["chart"]:
+            chart, created = Chart.objects.get_or_create(
+                waypoint=self,
+                submitted_by=Faction.objects.get(symbol=data["chart"]["submittedBy"]),
+                submitted_on=data["chart"]["submittedOn"],
+            )
+            self.chart = chart
+        self.is_under_construction = data["isUnderConstruction"]
+
+        self.save()
+
     @property
     @display(description="type")
     def type_display(self):
         return self.type.replace("_", " ").capitalize()
+
+    @property
+    @display(description="orbitals")
+    def orbitals_display(self):
+        return ", ".join([str(o) for o in self.orbitals.all()])
 
     @property
     def coords(self):
@@ -176,7 +209,7 @@ class ShipNav(models.Model):
     flight_mode = models.CharField(max_length=32)
 
     def __str__(self):
-        return f"{self.status} ({self.route['arrival']}), {self.flight_mode}"
+        return f"{self.waypoint.symbol}, {self.status_display} ({self.route['arrival']}), {self.flight_mode_display}"
 
     def update(self, data):
         """Update from passed-in nav data."""
@@ -194,6 +227,14 @@ class ShipNav(models.Model):
         now = datetime.now(timezone.utc)
         arrival = datetime.fromisoformat(self.route["arrival"])
         return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})"
+
+    @property
+    def status_display(self):
+        return self.status.replace("_", " ")
+
+    @property
+    def flight_mode_display(self):
+        return self.flight_mode.replace("_", " ")
 
 
 class ShipModule(models.Model):
@@ -281,13 +322,14 @@ class Ship(models.Model):
 
         return f"{self} flight mode set to {mode}"
 
-    def navigate(self, client, waypoint_symbol):
+    def navigate(self, client, waypoint_symbol: str, logging: bool = True):
         if not self.is_in_orbit:
             self.orbit(client)
 
         data = client.navigate_ship(self.symbol, waypoint_symbol)
         if "error" in data:
-            print(data["error"]["message"])
+            if logging:
+                print(data["error"]["message"])
             return False
 
         # data contains: fuel, nav
@@ -298,13 +340,14 @@ class Ship(models.Model):
 
         return f"{self} en route to {self.nav.route['destination']['symbol']}, arrival in {self.nav.arrival_display()}"
 
-    def refuel(self, client, units: int = None, from_cargo: bool = False):
+    def refuel(self, client, units: int = None, from_cargo: bool = False, logging: bool = True):
         if not self.is_docked:
             self.dock(client)
 
         data = client.refuel_ship(self.symbol, units, from_cargo)
         if "error" in data:
-            print(data["error"]["message"])
+            if logging:
+                print(data["error"]["message"])
             return False
 
         # data contains: agent, fuel, transaction
@@ -423,12 +466,13 @@ class Ship(models.Model):
                 current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["inventory"]])
                 ShipCargoItem.objects.filter(ship=self).exclude(type__in=current_cargo).delete()
 
-    def purchase_cargo(self, client, commodity, units):
+    def purchase_cargo(self, client, commodity: str, units: int, logging: bool = True):
         if not self.is_docked:
             self.dock(client)
         data = client.purchase_cargo(self.symbol, commodity, units)
         if "error" in data:
-            print(data["error"]["message"])
+            if logging:
+                print(data["error"]["message"])
             return False
 
         # data contains: agent, cargo, transaction
@@ -510,18 +554,15 @@ class ShipCargoItem(models.Model):
     def __str__(self):
         return f"{self.units} units of {self.type} ({self.ship.symbol})"
 
-    def sell(self, client, units=None):
+    def sell(self, client, units: int = None, logging: bool = True):
         """Sell this cargo at the ship's current location."""
-        # Prevent trying to sell at an invalid location.
-        if not self.ship.nav.waypoint.is_market or not self.ship.is_docked or self.units == 0:
-            return
-
         if not units:
             units = self.units
 
         data = client.sell_cargo(self.ship.symbol, self.type.symbol, units)
         if "error" in data:
-            print(data["error"]["message"])
+            if logging:
+                print(data["error"]["message"])
             return False
 
         # data contains: agent, cargo, transaction
@@ -542,7 +583,8 @@ class ShipCargoItem(models.Model):
             timestamp=data["transaction"]["timestamp"],
         )
 
-        return f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}"
+        if logging:
+            print(f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}")
 
 
 class Contract(models.Model):
