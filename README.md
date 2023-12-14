@@ -48,3 +48,40 @@ Process:
 
 - [ ] Find suitable source waypoint (closest with trait)
 - [ ] Loop an action with a cooldown period
+
+# Snippets
+
+```
+# Visit all of the market waypoints in the system.
+ship = Ship.objects.first()
+visited_waypoints = []
+waypoints_to_visit = list(Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol='MARKETPLACE')).values_list('symbol', flat=True))
+
+while len(waypoints_to_visit) > 0:
+    print(f"len(waypoints_to_visit) waypoints to visit")
+    ship.refresh(client)
+    # Find the next-nearest waypoint
+    waypoints = Waypoint.objects.filter(symbol__in=waypoints_to_visit)
+    destinations = []
+    for wp in waypoints:
+        destinations.append((wp.distance(ship.nav.waypoint.coords), m))
+    destinations = sorted(destinations, key=lambda x: x[0])
+    destination = destinations[0][1]
+    # navigate to destination waypoint
+    print(f"Navigating ship to {destination}")
+    ship.navigate(client, destination.symbol)
+    # pause until arrival
+    now = datetime.now(timezone.utc)
+    arrival = datetime.fromisoformat(ship.nav.route['arrival'])
+    pause = (arrival - now).seconds + 1
+    print(f"Pausing {ship.nav.arrival_display()}")
+    sleep(pause)
+    ship.refresh(client)
+    # Refresh waypoint info
+    print("Refreshing waypoint info")
+    ship.nav.waypoint.refresh(client)
+    # Add waypoint symbol to visited_waypoints
+    visited_waypoints.append(ship.nav.waypoint.symbol)
+    # Remove waypoint from waypoints_to_visit
+    waypoints_to_visit.remove(ship.nav.waypoint.symbol)
+```
