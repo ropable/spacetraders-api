@@ -154,6 +154,18 @@ class Waypoint(models.Model):
 
         self.save()
 
+    def refresh(self, client):
+        data = client.get_waypoint(self.system.symbol, self.symbol)
+        self.update(data)
+
+        if self.is_market:
+            data = client.get_market(self.system.symbol, self.symbol)
+            self.market.update(data)
+
+        # TODO: shipyard, jump gate
+
+        return f"{self} data refreshed from server"
+
     @property
     @display(description="type")
     def type_display(self):
@@ -220,13 +232,21 @@ class ShipNav(models.Model):
         self.flight_mode = data["flightMode"]
         self.save()
 
+    def get_arrival(self):
+        """Returns route.arrival as a datetime.
+        """
+        if "arrival" in self.route:
+            return datetime.fromisoformat(self.route["arrival"])
+        return None
+
     def arrival_display(self):
         """Returns a human-readable string for the arrival time of a ship in transit."""
-        if self.status != "IN_TRANSIT":
+        arrival = self.get_arrival
+        if arrival:
+            now = datetime.now(timezone.utc)
+            return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M:%S')})"
+        else:
             return ""
-        now = datetime.now(timezone.utc)
-        arrival = datetime.fromisoformat(self.route["arrival"])
-        return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M')})"
 
     @property
     def status_display(self):
@@ -343,6 +363,7 @@ class Ship(models.Model):
     def refuel(self, client, units: int = None, from_cargo: bool = False, logging: bool = True):
         if not self.is_docked:
             self.dock(client)
+            self.refresh(client)  # Update nav.
 
         data = client.refuel_ship(self.symbol, units, from_cargo)
         if "error" in data:
@@ -558,6 +579,10 @@ class ShipCargoItem(models.Model):
         """Sell this cargo at the ship's current location."""
         if not units:
             units = self.units
+
+        if not self.ship.is_docked:
+            self.ship.dock(client)
+            self.ship.refresh(client)
 
         data = client.sell_cargo(self.ship.symbol, self.type.symbol, units)
         if "error" in data:
