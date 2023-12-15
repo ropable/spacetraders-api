@@ -241,7 +241,7 @@ class ShipNav(models.Model):
 
     def arrival_display(self):
         """Returns a human-readable string for the arrival time of a ship in transit."""
-        arrival = self.get_arrival
+        arrival = self.get_arrival()
         if arrival:
             now = datetime.now(timezone.utc)
             return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M:%S')})"
