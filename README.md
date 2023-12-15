@@ -92,3 +92,18 @@ while len(waypoints_to_visit) > 0:
     # Remove waypoint from waypoints_to_visit
     waypoints_to_visit.remove(ship.nav.waypoint.symbol)
 ```
+
+## Find market trade opporunities
+
+```python
+market_tradegoods = MarketTradeGood.objects.all()
+for exp in market_tradegoods.filter(type="EXPORT"):
+    for imp in market_tradegoods.filter(type="IMPORT"):
+        if imp.trade_good == exp.trade_good:
+            profit = imp.purchase_price - exp.sell_price
+            wp_ex = exp.market.waypoint
+            wp_im = imp.market.waypoint
+            d = wp_ex.distance(wp_im.coords)
+            if profit >= 1000 and d <= 250:
+                print(wp_ex.symbol.ljust(12), wp_ex.coords, exp.trade_good.symbol.ljust(21), '->', wp_im.symbol.ljust(12), wp_im.coords, f'{profit}/unit', '{:.1f}'.format(d))
+```
