@@ -12,6 +12,7 @@ populate_factions(client)
 set_agent(client)
 populate_ships(client)
 populate_contracts(client)
+populate_markets(client)
 ```
 
 # Environment variables
@@ -51,9 +52,14 @@ Process:
 
 # Snippets
 
-```
-# Visit all of the market waypoints in the system.
+## Visit all of the market waypoints in the system.
+
+```python
+from datetime import datetime, timezone
+from time import sleep
+
 ship = Ship.objects.first()
+ship.flight_mode(client, "DRIFT")
 visited_waypoints = []
 waypoints_to_visit = list(Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol='MARKETPLACE')).values_list('symbol', flat=True))
 
@@ -64,19 +70,20 @@ while len(waypoints_to_visit) > 0:
     waypoints = Waypoint.objects.filter(symbol__in=waypoints_to_visit)
     destinations = []
     for wp in waypoints:
-        destinations.append((wp.distance(ship.nav.waypoint.coords), m))
+        destinations.append((wp.distance(ship.nav.waypoint.coords), wp))
     destinations = sorted(destinations, key=lambda x: x[0])
     destination = destinations[0][1]
     # navigate to destination waypoint
-    print(f"Navigating ship to {destination}")
-    ship.navigate(client, destination.symbol)
-    # pause until arrival
-    now = datetime.now(timezone.utc)
-    arrival = datetime.fromisoformat(ship.nav.route['arrival'])
-    pause = (arrival - now).seconds + 1
-    print(f"Pausing {ship.nav.arrival_display()}")
-    sleep(pause)
-    ship.refresh(client)
+    if ship.nav.waypoint != destination:
+        print(f"Navigating ship to {destination}")
+        ship.navigate(client, destination.symbol)
+        # pause until arrival
+        now = datetime.now(timezone.utc)
+        arrival = datetime.fromisoformat(ship.nav.route['arrival'])
+        pause = (arrival - now).seconds + 1
+        print(f"Pausing {ship.nav.arrival_display()}")
+        sleep(pause)
+        ship.refresh(client)
     # Refresh waypoint info
     print("Refreshing waypoint info")
     ship.nav.waypoint.refresh(client)
