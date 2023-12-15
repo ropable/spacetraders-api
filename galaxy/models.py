@@ -5,6 +5,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from humanize import naturaldelta
 from math import dist
+from time import sleep
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo(settings.TIME_ZONE)
@@ -55,6 +56,10 @@ class Agent(models.Model):
         self.credits = data["credits"]
         self.ship_count = data["shipCount"]
         self.save()
+
+    def refresh(self, client):
+        data = client.get_agent()
+        self.update(data)
 
 
 class System(models.Model):
@@ -363,7 +368,6 @@ class Ship(models.Model):
     def refuel(self, client, units: int = None, from_cargo: bool = False, logging: bool = True):
         if not self.is_docked:
             self.dock(client)
-            self.refresh(client)  # Update nav.
 
         data = client.refuel_ship(self.symbol, units, from_cargo)
         if "error" in data:
@@ -516,6 +520,15 @@ class Ship(models.Model):
 
         return f"{self} purchased {transaction.units} units of {trade_good} for {transaction.total_price}"
 
+    def sell_cargo(self, client):
+        """Convenience function to try selling all the ship's cargo at the current waypoint.
+        """
+        if not self.is_docked:
+            self.dock(client)
+
+        for cargo in self.cargo.all():
+            cargo.sell(client)
+
     def refresh(self, client):
         data = client.get_ship(self.symbol)
         self.update(data)
@@ -551,6 +564,14 @@ class Ship(models.Model):
         destinations = sorted(destinations, key=lambda x: x[0])
         return destinations
 
+    def sleep_until_arrival(self, client):
+        now = datetime.now(timezone.utc)
+        arrival = datetime.fromisoformat(self.nav.route['arrival'])
+        pause = (arrival - now).seconds + 1
+        print(f"Sleeping {self.nav.arrival_display()}")
+        sleep(pause)
+        self.refresh(client)
+
 
 class CargoType(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -582,7 +603,6 @@ class ShipCargoItem(models.Model):
 
         if not self.ship.is_docked:
             self.ship.dock(client)
-            self.ship.refresh(client)
 
         data = client.sell_cargo(self.ship.symbol, self.type.symbol, units)
         if "error" in data:
@@ -608,8 +628,7 @@ class ShipCargoItem(models.Model):
             timestamp=data["transaction"]["timestamp"],
         )
 
-        if logging:
-            print(f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}")
+        return f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}"
 
 
 class Contract(models.Model):
