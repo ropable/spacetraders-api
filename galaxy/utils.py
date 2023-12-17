@@ -18,6 +18,8 @@ from galaxy.models import (
 )
 
 
+@sleep_and_retry
+@limits(calls=30, period=60)
 def populate_factions(client):
     """Populate Faction instances from the server.
     """
@@ -79,6 +81,8 @@ def populate_factions(client):
                 print(f"{new_trait} trait added to {faction}")
 
 
+@sleep_and_retry
+@limits(calls=30, period=60)
 def populate_system(client, system_symbol):
     """Populate a given system.
     """
@@ -195,6 +199,10 @@ def populate_ships(client):
 
 
 def populate_ship(client, agent, data):
+    if not System.objects.filter(symbol=data["nav"]["systemSymbol"]).exists():
+        print(f"Populating System {data['nav']['systemSymbol']}")
+        populate_system(client, data["nav"]["systemSymbol"])
+
     system = System.objects.get(symbol=data["nav"]["systemSymbol"])
     waypoint = Waypoint.objects.get(symbol=data["nav"]["waypointSymbol"])
     nav = ShipNav.objects.create(
