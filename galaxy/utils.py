@@ -1,4 +1,5 @@
 from ratelimit import limits, sleep_and_retry
+from spacetraders.utils import get_graph, depth_first_search
 from galaxy.models import (
     Agent,
     Faction,
@@ -13,6 +14,7 @@ from galaxy.models import (
     ContractDeliverGood,
     Market,
     Shipyard,
+    MarketTradeGood,
 )
 
 
@@ -289,3 +291,54 @@ def populate_shipyards(client):
         shipyard, created = Shipyard.objects.get_or_create(waypoint=wp)
         shipyard.update(data)
         print(f"Updated shipyard {shipyard}")
+
+
+def get_trade_routes(ship):
+    """For a given starting waypoint, return the set of all trade routes for the system.
+    Output:
+        [
+            (path_profit/unit, path_distance, [(export waypoint, import waypoint, trade good), ...]),
+            ...
+            ()
+        ]
+    """
+    market_tradegoods = MarketTradeGood.objects.all()
+    paths = set()
+    for exp in market_tradegoods.filter(type="EXPORT"):
+        for imp in market_tradegoods.filter(type="IMPORT"):
+            if imp.trade_good == exp.trade_good:
+                paths.add((exp.market.waypoint.symbol, imp.market.waypoint.symbol))
+    paths = sorted(paths)
+    graph = get_graph(paths)
+    all_paths = depth_first_search(graph, ship.nav.waypoint.symbol)
+    max_len = max(len(p) for p in all_paths)
+    # Analyze the longest group of paths only.
+    analyze_paths = [p for p in all_paths if len(p) >= max_len - 2]
+    trade_routes = []
+
+    for path in analyze_paths:
+        path_profit = 0
+        path_distance = 0
+        trade_route = []
+
+        for k, symbol in enumerate(path[:-1]):
+            best_profit = 0
+            best_distance = 0
+            for exp in market_tradegoods.filter(type="EXPORT"):
+                for imp in market_tradegoods.filter(type="IMPORT"):
+                    if imp.trade_good == exp.trade_good:
+                        wp_ex = exp.market.waypoint
+                        wp_im = imp.market.waypoint
+                        if wp_ex.symbol == symbol and wp_im.symbol == path[k + 1]:
+                            profit = imp.sell_price - exp.purchase_price
+                            distance = int(wp_ex.distance(wp_im.coords))
+                            if profit > best_profit:
+                                best_profit = profit
+                                best_distance = distance
+                                best_trade = (wp_ex.symbol, wp_im.symbol, exp.trade_good.symbol)
+            path_profit += best_profit
+            path_distance += best_distance
+            trade_route.append(best_trade)
+        trade_routes.append((path_profit, path_distance, trade_route))
+
+    return sorted(trade_routes, key=lambda x: x[0], reverse=True)
