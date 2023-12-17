@@ -2,25 +2,26 @@
 
 Reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-space-traders-api
 
-Bootstrap database:
-
-```python
-from spacetraders import Client
-from spacetraders.utils import *
-client = Client()
-populate_factions(client)
-set_agent(client)
-populate_ships(client)
-populate_contracts(client)
-populate_markets(client)
-```
-
 # Environment variables
 
     API_TOKEN
     TZ
     DEBUG
     DATABASE_URL
+
+# Bootstrap database
+
+```python
+from spacetraders import Client
+from galaxy.utils import *
+client = Client()
+populate_factions(client)  # Populates factions and systems
+set_agent(client)  # Creates player Agent instance
+populate_ships(client)  # Creates ships and initial system waypoints
+populate_contracts(client)
+populate_markets(client)
+populate_shipyards(client)
+```
 
 # TODOs
 
@@ -59,12 +60,11 @@ from datetime import datetime, timezone
 from time import sleep
 
 ship = Ship.objects.first()
-ship.flight_mode(client, "DRIFT")
 visited_waypoints = []
 waypoints_to_visit = list(Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol='MARKETPLACE')).values_list('symbol', flat=True))
 
 while len(waypoints_to_visit) > 0:
-    print(f"len(waypoints_to_visit) waypoints to visit")
+    print(f"{len(waypoints_to_visit)} waypoints to visit")
     ship.refresh(client)
     # Find the next-nearest waypoint
     waypoints = Waypoint.objects.filter(symbol__in=waypoints_to_visit)
@@ -73,27 +73,29 @@ while len(waypoints_to_visit) > 0:
         destinations.append((wp.distance(ship.nav.waypoint.coords), wp))
     destinations = sorted(destinations, key=lambda x: x[0])
     destination = destinations[0][1]
-    # navigate to destination waypoint
+    # Navigate to destination waypoint
     if ship.nav.waypoint != destination:
         print(f"Navigating ship to {destination}")
-        ship.navigate(client, destination.symbol)
-        # pause until arrival
-        now = datetime.now(timezone.utc)
-        arrival = datetime.fromisoformat(ship.nav.route['arrival'])
-        pause = (arrival - now).seconds + 1
-        print(f"Pausing {ship.nav.arrival_display()}")
-        sleep(pause)
+        # Try travelling to the waypoint in cruise mode first.
+        ship.flight_mode(client, "CRUISE")
+        resp = ship.navigate(client, destination.symbol)
+        if not resp:  # Error, out of range for this flight mode:
+            ship.flight_mode(client, "DRIFT")
+            ship.navigate(client, destination.symbol)
+        ship.sleep_until_arrival(client)
         ship.refresh(client)
     # Refresh waypoint info
-    print("Refreshing waypoint info")
+    print(f"Refreshing waypoint {ship.nav.waypoint} info")
     ship.nav.waypoint.refresh(client)
     # Add waypoint symbol to visited_waypoints
     visited_waypoints.append(ship.nav.waypoint.symbol)
     # Remove waypoint from waypoints_to_visit
     waypoints_to_visit.remove(ship.nav.waypoint.symbol)
+    # Refuel ship
+    ship.refuel(client)
 ```
 
-## Find market trade opporunities
+## Find market trade opportunities
 
 ```python
 market_tradegoods = MarketTradeGood.objects.all()

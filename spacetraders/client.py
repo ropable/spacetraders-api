@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from ratelimit import limits, sleep_and_retry
 from requests import Session
+from .utils import infer_system_symbol
 
 
 d = Path(__file__).resolve().parents[1]
@@ -63,6 +64,8 @@ class Client(Session):
         resp.raise_for_status()
         data = resp.json()["data"]
 
+        self.token = data["token"]
+        self.headers["Authorization"] = f"Bearer {self.token}"
         token = open("BEARER_TOKEN", "w")
         token.write(data["token"])
         print("Token written to file")
@@ -271,7 +274,7 @@ class Client(Session):
             # If the destination is out of range, return the error payload.
             return resp.json()
 
-    def refuel_ship(self, symbol: str, units: int=None, from_cargo: bool=False):
+    def refuel_ship(self, symbol: str, units: int = None, from_cargo: bool = False):
         """Refuel this ship from the local market. If not specifed, refuel to the maximum
         fuel capacity.
         """
@@ -287,11 +290,11 @@ class Client(Session):
             # If the transaction fails, return the error payload.
             return resp.json()
 
-    def sell_cargo(self, symbol: str, commodity: str, units: int):
+    def sell_cargo(self, symbol: str, trade_good: str, units: int):
         """Sell cargo for a given ship to a marketplace.
         """
         data = {
-            "symbol": commodity,
+            "symbol": trade_good,
             "units": units,
         }
 
@@ -303,11 +306,11 @@ class Client(Session):
             # If the transaction fails, return the error payload.
             return resp.json()
 
-    def purchase_cargo(self, symbol: str, commodity: str, units: int):
+    def purchase_cargo(self, symbol: str, trade_good: str, units: int):
         """Purchase cargo for a given ship from a marketplace.
         """
         data = {
-            "symbol": commodity,
+            "symbol": trade_good,
             "units": units,
         }
 
@@ -353,7 +356,7 @@ class Client(Session):
 
     @sleep_and_retry
     @limits(calls=30, period=60)
-    def list_waypoints(self, symbol: str, type: str=None, trait: str=None):
+    def list_waypoints(self, symbol: str, type: str = None, trait: str = None):
         """List all waypoints for the given system.
         """
         params = {
@@ -379,37 +382,47 @@ class Client(Session):
 
         return waypoints
 
-    def get_waypoint(self, system_symbol: str, symbol: str):
+    def get_waypoint(self, symbol: str, system_symbol: str = None):
         """Get a waypoint by symbol.
         """
+        if not system_symbol:  # Infer the system symbol from the waypoint symbol.
+            system_symbol = infer_system_symbol(symbol)
         resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}")
         resp.raise_for_status()
         return resp.json()["data"]
 
-    def get_market(self, system_symbol: str, symbol: str):
+    def get_market(self, symbol: str, system_symbol: str = None):
         """Get a market for a waypoint.
         """
+        if not system_symbol:  # Infer the system symbol from the waypoint symbol.
+            system_symbol = infer_system_symbol(symbol)
         resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/market")
         resp.raise_for_status()
         return resp.json()["data"]
 
-    def get_shipyard(self, system_symbol: str, symbol: str):
+    def get_shipyard(self, symbol: str, system_symbol: str = None):
         """Get a shipyard for a waypoint.
         """
+        if not system_symbol:  # Infer the system symbol from the waypoint symbol.
+            system_symbol = infer_system_symbol(symbol)
         resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/shipyard")
         resp.raise_for_status()
         return resp.json()["data"]
 
-    def get_jump_gate(self, system_symbol: str, symbol: str):
+    def get_jump_gate(self, symbol: str, system_symbol: str = None):
         """Get a jump gate for a waypoint.
         """
+        if not system_symbol:  # Infer the system symbol from the waypoint symbol.
+            system_symbol = infer_system_symbol(symbol)
         resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/jump-gate")
         resp.raise_for_status()
         return resp.json()["data"]
 
-    def get_construction_site(self, system_symbol: str, symbol: str):
+    def get_construction_site(self, symbol: str, system_symbol: str = None):
         """Get a construction site for a waypoint.
         """
+        if not system_symbol:  # Infer the system symbol from the waypoint symbol.
+            system_symbol = infer_system_symbol(symbol)
         resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/construction")
         resp.raise_for_status()
         return resp.json()["data"]
