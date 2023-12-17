@@ -184,41 +184,40 @@ def populate_ships(client):
 
     for data in ships:
         if not Ship.objects.filter(symbol=data["symbol"]).exists():
-            # Check that system exists in the database.
-            if not System.objects.filter(symbol=data["nav"]["systemSymbol"]).exists():
-                # Populate the system
-                populate_system(client, data["nav"]["systemSymbol"])
-
-            system = System.objects.get(symbol=data["nav"]["systemSymbol"])
-            waypoint = Waypoint.objects.get(symbol=data["nav"]["waypointSymbol"])
-            nav = ShipNav.objects.create(
-                system=system,
-                waypoint=waypoint,
-                route=data["nav"]["route"],
-                status=data["nav"]["status"],
-                flight_mode=data["nav"]["flightMode"],
-            )
-            ship = Ship.objects.create(
-                agent=agent,
-                symbol=data["symbol"],
-                registration=data["registration"],
-                nav=nav,
-                crew=data["crew"],
-                frame=data["frame"],
-                reactor=data["reactor"],
-                engine=data["engine"],
-                cooldown=data["cooldown"],
-                cargo_capacity=data["cargo"]["capacity"],
-                cargo_units=data["cargo"]["units"],
-                fuel=data["fuel"],
-            )
+            ship = populate_ship(client, agent, data)
             print(f"Created {ship}")
         else:
             ship = Ship.objects.get(symbol=data["symbol"])
+            ship.update(data)
+            print(f"Refreshed data for {ship}")
 
-        ship.update(data)
-        ship.update_cargo(data["cargo"])
-        print(f"Refreshed data for {ship}")
+
+def populate_ship(client, agent, data):
+    system = System.objects.get(symbol=data["nav"]["systemSymbol"])
+    waypoint = Waypoint.objects.get(symbol=data["nav"]["waypointSymbol"])
+    nav = ShipNav.objects.create(
+        system=system,
+        waypoint=waypoint,
+        route=data["nav"]["route"],
+        status=data["nav"]["status"],
+        flight_mode=data["nav"]["flightMode"],
+    )
+    ship = Ship.objects.create(
+        agent=agent,
+        symbol=data["symbol"],
+        registration=data["registration"],
+        nav=nav,
+        crew=data["crew"],
+        frame=data["frame"],
+        reactor=data["reactor"],
+        engine=data["engine"],
+        cooldown=data["cooldown"],
+        cargo_capacity=data["cargo"]["capacity"],
+        cargo_units=data["cargo"]["units"],
+        fuel=data["fuel"],
+    )
+    ship.update_cargo(data["cargo"])
+    return ship
 
 
 def populate_contracts(client):
