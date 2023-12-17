@@ -226,6 +226,22 @@ class Client(Session):
 
         return ships
 
+    def purchase_ship(self, waypoint_symbol: str, ship_type: str):
+        """Purchase a ship of the given type from the given waypoint symbol.
+        """
+        data = {
+            "shipType": ship_type,
+            "waypointSymbol": waypoint_symbol,
+        }
+
+        resp = self.post(f"{self.api_url}/my/ships", json=data)
+        try:
+            resp.raise_for_status()
+            return resp.json()["data"]
+        except:
+            # If the transaction fails, return the error payload.
+            return resp.json()
+
     def get_ship(self, symbol: str):
         """Get the details of a single ship under the player's ownership.
         """
