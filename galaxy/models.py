@@ -163,11 +163,11 @@ class Waypoint(models.Model):
         self.save()
 
     def refresh(self, client):
-        data = client.get_waypoint(self.system.symbol, self.symbol)
+        data = client.get_waypoint(self.symbol)
         self.update(data)
 
         if self.is_market:
-            data = client.get_market(self.system.symbol, self.symbol)
+            data = client.get_market(self.symbol)
             self.market.update(data)
 
         # TODO: shipyard, jump gate
@@ -229,7 +229,10 @@ class ShipNav(models.Model):
     flight_mode = models.CharField(max_length=32)
 
     def __str__(self):
-        return f"{self.waypoint.symbol}, {self.status_display} ({self.route['arrival']}), {self.flight_mode_display}"
+        if self.status in ["DOCKED", "IN_ORBIT"]:
+            return f"{self.status_display} at {self.waypoint}, {self.flight_mode_display} mode"
+        else:
+            return f"{self.status_display} to {self.waypoint}, {self.flight_mode_display} mode ({self.route['arrival']})"
 
     def update(self, data):
         """Update from passed-in nav data."""
@@ -258,11 +261,11 @@ class ShipNav(models.Model):
 
     @property
     def status_display(self):
-        return self.status.replace("_", " ")
+        return self.status.replace("_", " ").capitalize()
 
     @property
     def flight_mode_display(self):
-        return self.flight_mode.replace("_", " ")
+        return self.flight_mode.replace("_", " ").capitalize()
 
 
 class ShipModule(models.Model):
@@ -314,12 +317,17 @@ class Ship(models.Model):
         return f"{self.symbol} ({self.frame['name']})"
 
     @property
+    @display(description="frame")
     def frame_name(self):
         return self.frame["name"]
 
     @property
     def is_docked(self):
         return self.nav.status == "DOCKED"
+
+    @property
+    def role(self):
+        return self.registration["role"].capitalize()
 
     def orbit(self, client):
         if not self.is_docked:
@@ -523,6 +531,22 @@ class Ship(models.Model):
 
         return f"{self} purchased {transaction.units} units of {trade_good} for {transaction.total_price}"
 
+    def purchase_ship(self, client, ship_type: str, logging: bool = True):
+        """Purchase a ship of the given type at the current waypoint.
+        """
+        if not self.is_docked:
+            self.dock(client)
+        data = client.purchase_ship(self.nav.waypoint.symbol, ship_type)
+        if "error" in data:
+            if logging:
+                print(data["error"]["message"])
+            return False
+
+        # Populate the new ship in the database.
+        from .utils import populate_ship
+        ship = populate_ship(client, self.agent, data["ship"])
+        return f"Purchased {ship}"
+
     def sell_cargo(self, client):
         """Convenience function to try selling all the ship's cargo at the current waypoint.
         """
@@ -567,7 +591,7 @@ class Ship(models.Model):
         destinations = sorted(destinations, key=lambda x: x[0])
         return destinations
 
-    async def sleep_until_arrival(self, client):
+    def sleep_until_arrival(self, client):
         now = datetime.now(timezone.utc)
         arrival = datetime.fromisoformat(self.nav.route['arrival'])
         pause = (arrival - now).seconds + 1
@@ -575,7 +599,7 @@ class Ship(models.Model):
         sleep(pause)
         self.refresh(client)
 
-    async def trade_workflow(self, client, destination: str, action: str, trade_good: str, units: int):
+    def trade_workflow(self, client, destination: str, action: str, trade_good: str, units: int):
         """Carry out an automated trade workflow for this ship
         `destination`: waypoint symbol
         `action`: BUY|SELL
@@ -592,7 +616,7 @@ class Ship(models.Model):
                 self.flight_mode(client, "DRIFT")
                 self.navigate(client, destination)
             print(f"{self} navigating to {destination} ({self.nav.flight_mode})")
-            await self.sleep_until_arrival(client)
+            self.sleep_until_arrival(client)
 
         # Update the local market conditions.
         self.nav.waypoint.refresh(client)
@@ -829,6 +853,9 @@ class Market(models.Model):
                 if "activity" in good:  # Type EXCHANGE goods have no activity
                     market_trade_good.activity = good["activity"]
                 market_trade_good.save()
+
+    def trade_good_data(self):
+        return MarketTradeGood.objects.filter(market=self).exists()
 
 
 class Transaction(models.Model):
