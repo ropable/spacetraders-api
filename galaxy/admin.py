@@ -76,7 +76,7 @@ class WaypointTraitAdmin(ReadOnlyModelAdmin):
 @register(Ship)
 class ShipAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "frame_name", "role", "nav", "modified")
-    readonly_fields = [field.name for field in Ship._meta.concrete_fields]
+    readonly_fields = [field.name for field in Ship._meta.concrete_fields] + ["mounts_display", "modules_display"]
 
 
 @register(Contract)

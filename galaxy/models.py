@@ -665,6 +665,16 @@ class Ship(models.Model):
         """
         pass
 
+    @property
+    @display(description="mounts")
+    def mounts_display(self):
+        return ', '.join([str(mount) for mount in self.mounts.all()])
+
+    @property
+    @display(description="modules")
+    def modules_display(self):
+        return ', '.join([str(module) for module in self.modules.all()])
+
 
 class CargoType(models.Model):
     symbol = models.CharField(max_length=32, unique=True)

@@ -53,6 +53,12 @@ Process:
 
 # Snippets
 
+## Find suitable waypoints for mining
+
+```python
+waypoints = [wp for wp in Waypoint.objects.all() if (wp.has_trait('COMMON_METAL_DEPOSITS') is True and wp.has_trait('SHALLOW_CRATERS'))]
+```
+
 ## Visit all of the market waypoints in the system.
 
 ```python
