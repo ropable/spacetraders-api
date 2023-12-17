@@ -12,6 +12,7 @@ from galaxy.models import (
     Contract,
     ContractDeliverGood,
     Market,
+    Shipyard,
 )
 
 
@@ -273,7 +274,19 @@ def populate_markets(client):
     market_waypoints = Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol="MARKETPLACE"))
 
     for wp in market_waypoints:
-        data = client.get_market(wp.system.symbol, wp.symbol)
+        data = client.get_market(wp.symbol)
         market, created = Market.objects.get_or_create(waypoint=wp)
         market.update(data)
         print(f"Updated market {market}")
+
+
+@sleep_and_retry
+@limits(calls=30, period=60)
+def populate_shipyards(client):
+    shipyard_waypoints = Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol="SHIPYARD"))
+
+    for wp in shipyard_waypoints:
+        data = client.get_shipyard(wp.symbol)
+        shipyard, created = Shipyard.objects.get_or_create(waypoint=wp)
+        shipyard.update(data)
+        print(f"Updated shipyard {shipyard}")
