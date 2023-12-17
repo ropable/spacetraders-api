@@ -102,10 +102,53 @@ market_tradegoods = MarketTradeGood.objects.all()
 for exp in market_tradegoods.filter(type="EXPORT"):
     for imp in market_tradegoods.filter(type="IMPORT"):
         if imp.trade_good == exp.trade_good:
-            profit = imp.purchase_price - exp.sell_price
+            profit = imp.sell_price - exp.purchase_price
             wp_ex = exp.market.waypoint
             wp_im = imp.market.waypoint
             d = wp_ex.distance(wp_im.coords)
             if profit >= 1000 and d <= 250:
                 print(wp_ex.symbol.ljust(12), wp_ex.coords, exp.trade_good.symbol.ljust(21), '->', wp_im.symbol.ljust(12), wp_im.coords, f'{profit}/unit', '{:.1f}'.format(d))
+```
+
+## Find the longest given trading routes
+
+```python
+from spacetraders.utils import get_graph, depth_first_search
+
+market_tradegoods = MarketTradeGood.objects.all()
+paths = set()
+# First, get a set of all paths (export waypoint, import waypoint).
+for exp in market_tradegoods.filter(type="EXPORT"):
+    for imp in market_tradegoods.filter(type="IMPORT"):
+        if imp.trade_good == exp.trade_good:
+            paths.add((exp.market.waypoint.symbol, wp_im.symbol))
+graph = get_graph(paths)
+starting_waypoint = "X1-BV72-D43"
+all_paths = depth_first_search(graph, starting_waypoint)
+max_len = max(len(p) for p in all_paths)
+max_paths = [p for p in all_paths if len(p) == max_len]
+
+# Choose any of the longest paths.
+path = max_paths[0]
+path_profit = 0
+path_distance = 0
+for k, symbol in enumerate(path[:-1]):
+    best_profit = 0
+    best_distance = 0
+    for exp in market_tradegoods.filter(type="EXPORT"):
+        for imp in market_tradegoods.filter(type="IMPORT"):
+            if imp.trade_good == exp.trade_good:
+                wp_ex = exp.market.waypoint
+                wp_im = imp.market.waypoint
+                if wp_ex.symbol == symbol and wp_im.symbol == path[k+1]:
+                    profit = imp.sell_price - exp.purchase_price
+                    distance = int(wp_ex.distance(wp_im.coords))
+                    if profit > best_profit:
+                        best_profit = profit
+                        best_distance = distance
+                        best_trade = f"{wp_ex.symbol.ljust(12)} {str(wp_ex.coords).ljust(12)} {exp.trade_good.symbol.ljust(21)} -> {wp_im.symbol.ljust(12)} {str(wp_im.coords).ljust(12)} {profit}/unit {distance}"
+    path_profit += best_profit
+    path_distance += best_distance
+    print(best_trade)
+print(path_profit, path_distance)
 ```
