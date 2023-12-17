@@ -255,7 +255,7 @@ class ShipNav(models.Model):
         arrival = self.get_arrival()
         if arrival:
             now = datetime.now(timezone.utc)
-            return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d-%b1-%Y %H:%M:%S')})"
+            return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d-%b-%Y %H:%M:%S')})"
         else:
             return ""
 
@@ -599,66 +599,98 @@ class Ship(models.Model):
         sleep(pause)
         self.refresh(client)
 
-    def trade_workflow(self, client, destination: str, action: str, trade_good: str, units: int):
+    def trade_workflow(self, client, export_waypoint: str, import_waypoint: str, trade_good_symbol: str, units: int = None):
         """Carry out an automated trade workflow for this ship
-        `destination`: waypoint symbol
-        `action`: BUY|SELL
-        `trade_good`: trade good symbol
-        `units`: units to transact
         TODO: make this function non-blocking, in a separate thread.
         """
-        # If necessary, navigate to the destination waypoint.
-        if self.nav.waypoint.symbol != destination:
+        # If necessary, navigate to the exporter waypoint.
+        print("Navigate to exporter step")
+        if self.nav.waypoint.symbol != export_waypoint:
             # Try navigating to the waypoint in cruise mode first.
             self.flight_mode(client, "CRUISE")
-            resp = self.navigate(client, destination)
+            resp = self.navigate(client, export_waypoint)
             if not resp:  # Error, out of range for this flight mode:
                 self.flight_mode(client, "DRIFT")
-                self.navigate(client, destination)
-            print(f"{self} navigating to {destination} ({self.nav.flight_mode})")
+                self.navigate(client, export_waypoint)
+            print(f"{self} navigating to {export_waypoint} ({self.nav.flight_mode})")
             self.sleep_until_arrival(client)
+        # Dock at the destination
+        self.dock(client)
 
         # Update the local market conditions.
         self.nav.waypoint.refresh(client)
         market = self.nav.waypoint.market
-        trade_good = TradeGood.objects.get(symbol=trade_good)
+        trade_good = TradeGood.objects.get(symbol=trade_good_symbol)
         market_trade_good = MarketTradeGood.objects.get(market=market, trade_good=trade_good)
+        if market_trade_good.type != "EXPORT":
+            print(f"{trade_good} is not exported at {market}")
+            return False
 
-        # BUY: purchase a given amount of the trade good.
-        if action == "BUY":
-            if market_trade_good.type != "EXPORT":
-                print(f"{trade_good} is not exported at {market}")
-                return False
-            # First, check the trade_volume of the good.
-            # If the trade_volume is less than `units`, we need to iterate
-            # the purchase until the desired quantity of units is reached.
-            if units > market_trade_good.trade_volume:
-                # iterate
-                remaining = units  # Running total of purchased good.
-                while remaining > 0:
-                    # Determine how much to purchase.
-                    if remaining > market_trade_good.trade_volume:
-                        outcome = self.purchase_cargo(client, trade_good, remaining)
-                        if outcome:
-                            remaining -= remaining
-                            print(outcome)
-                        else:
-                            return False
+        print("Purchase goods step")
+        # Purchase a given amount of the trade good.
+        # First, check the trade_volume of the good.
+        # If the trade_volume is less than `units`, we need to iterate
+        # the purchase until the desired quantity of units is reached.
+        if not units:  # Default to ship available cargo capacity.
+            units = self.cargo_capacity - self.cargo_units
+
+        if units > market_trade_good.trade_volume:
+            print("Purchasing as multiple transactions")
+            # iterate
+            remaining = units  # Running total of purchased good.
+            while remaining > 0:
+                # Determine how much to purchase.
+                if remaining > market_trade_good.trade_volume:
+                    print(f"Purchasing remaining {remaining} units")
+                    outcome = self.purchase_cargo(client, trade_good_symbol, remaining)
+                    if outcome:
+                        remaining -= remaining
+                        print(outcome)
                     else:
-                        outcome = self.purchase_cargo(client, trade_good, market_trade_good.trade_volume)
-                        if outcome:
-                            remaining -= market_trade_good.trade_volume
-                            print(outcome)
-                        else:
-                            return False
-                return True  # Trade concluded
-            else:
-                outcome = self.purchase_cargo(client, trade_good, units)
-                if outcome:
-                    print(outcome)
-                    return True  # Trade concluded
+                        return False
                 else:
-                    return False
+                    print(f"Purchasing {market_trade_good.trade_volume} units")
+                    outcome = self.purchase_cargo(client, trade_good_symbol, market_trade_good.trade_volume)
+                    if outcome:
+                        remaining -= market_trade_good.trade_volume
+                        print(outcome)
+                    else:
+                        return False
+        else:
+            # Single purchase
+            print("Purchasing as a single transaction")
+            outcome = self.purchase_cargo(client, trade_good_symbol, units)
+            if outcome:
+                print(outcome)
+            else:
+                return False
+
+        # Update the local market conditions.
+        self.nav.waypoint.refresh(client)
+
+        print("Navigate to importer step")
+        # Navigate to the importer waypoint.
+        # Try navigating to the waypoint in cruise mode first.
+        self.flight_mode(client, "CRUISE")
+        resp = self.navigate(client, import_waypoint)
+        if not resp:  # Error, out of range for this flight mode:
+            self.flight_mode(client, "DRIFT")
+            self.navigate(client, import_waypoint)
+        print(f"{self} navigating to {import_waypoint} ({self.nav.flight_mode})")
+        self.sleep_until_arrival(client)
+        # Dock at the destination
+        self.dock(client)
+
+        print("Sell step")
+        # Sell the cargo at the importer waypoint.
+        cargo = ShipCargoItem.objects.get(ship=self, type=CargoType.objects.get(symbol=trade_good_symbol))
+        # TODO: determine the maximum we can sell in one transaction.
+        sale = cargo.sell(client)
+        if sale:
+            print(sale)
+            return True
+        else:
+            return False
 
     def extract_workflow(self, client, destination: str, resource: str):
         """Carry out an automated resource extraction workflow.
