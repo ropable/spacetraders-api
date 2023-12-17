@@ -255,7 +255,7 @@ class ShipNav(models.Model):
         arrival = self.get_arrival()
         if arrival:
             now = datetime.now(timezone.utc)
-            return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d/%m/%Y %H:%M:%S')})"
+            return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d-%b1-%Y %H:%M:%S')})"
         else:
             return ""
 
@@ -743,6 +743,21 @@ class Contract(models.Model):
     @property
     def required_goods(self):
         return '\n'.join([str(good) for good in self.deliver_goods.all()])
+
+    def accept(self, client):
+        data = client.accept_contract(self.contract_id)
+        self.update(data["contract"])
+
+    def update(self, data):
+        self.accepted = data["accepted"]
+        self.fulfilled = data["fulfilled"]
+        self.save()
+
+    @property
+    def expiration_display(self):
+        """Returns a human-readable string for the expiration timestamp"""
+        now = datetime.now(timezone.utc)
+        return f"{naturaldelta(self.expiration - now)} ({self.expiration.astimezone(TZ).strftime('%d-%b-%Y %H:%M:%S')})"
 
 
 class ContractDeliverGood(models.Model):
