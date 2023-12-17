@@ -10,6 +10,8 @@ from .models import (
     Market,
     TradeGood,
     MarketTradeGood,
+    Shipyard,
+    ShipyardShip,
 )
 
 
@@ -125,7 +127,19 @@ class MarketAdmin(ReadOnlyModelAdmin):
 @register(MarketTradeGood)
 class MarketTradeGoodAdmin(ReadOnlyModelAdmin):
 
-    list_display = ("waypoint_display", "trade_good", "type", "supply", "activity", "purchase_price", "sell_price")
+    list_display = ("waypoint_display", "symbol", "type", "supply", "activity", "purchase_price", "sell_price", "trade_volume")
     list_filter = ("type", "supply", "activity")
     readonly_fields = [field.name for field in MarketTradeGood._meta.concrete_fields]
-    search_fields = ("market__waypoint__symbol",)
+    search_fields = ("market__waypoint__symbol", "trade_good__name")
+
+
+@register(Shipyard)
+class ShipyardAdmin(ReadOnlyModelAdmin):
+    list_display = ("waypoint", "ships_display", "modifications_fee")
+    readonly_fields = [field.name for field in Shipyard._meta.concrete_fields]
+
+
+@register(ShipyardShip)
+class ShipyardShipAdmin(ReadOnlyModelAdmin):
+    list_display = ("shipyard", "type", "name", "purchase_price")
+    readonly_fields = [field.name for field in ShipyardShip._meta.concrete_fields]

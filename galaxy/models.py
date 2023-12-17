@@ -131,6 +131,9 @@ class Waypoint(models.Model):
     def __str__(self):
         return f"{self.symbol} ({self.type_display})"
 
+    def subsystem_symbol(self):
+        return self.symbol.split("-")[-1]
+
     def update(self, data):
         """Update object from passed-in data."""
         if "orbits" in data and data["orbits"]:
@@ -491,10 +494,10 @@ class Ship(models.Model):
                 current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["inventory"]])
                 ShipCargoItem.objects.filter(ship=self).exclude(type__in=current_cargo).delete()
 
-    def purchase_cargo(self, client, commodity: str, units: int, logging: bool = True):
+    def purchase_cargo(self, client, trade_good: str, units: int, logging: bool = True):
         if not self.is_docked:
             self.dock(client)
-        data = client.purchase_cargo(self.symbol, commodity, units)
+        data = client.purchase_cargo(self.symbol, trade_good, units)
         if "error" in data:
             if logging:
                 print(data["error"]["message"])
@@ -564,13 +567,79 @@ class Ship(models.Model):
         destinations = sorted(destinations, key=lambda x: x[0])
         return destinations
 
-    def sleep_until_arrival(self, client):
+    async def sleep_until_arrival(self, client):
         now = datetime.now(timezone.utc)
         arrival = datetime.fromisoformat(self.nav.route['arrival'])
         pause = (arrival - now).seconds + 1
         print(f"Sleeping {self.nav.arrival_display()}")
         sleep(pause)
         self.refresh(client)
+
+    async def trade_workflow(self, client, destination: str, action: str, trade_good: str, units: int):
+        """Carry out an automated trade workflow for this ship
+        `destination`: waypoint symbol
+        `action`: BUY|SELL
+        `trade_good`: trade good symbol
+        `units`: units to transact
+        TODO: make this function non-blocking, in a separate thread.
+        """
+        # If necessary, navigate to the destination waypoint.
+        if self.nav.waypoint.symbol != destination:
+            # Try navigating to the waypoint in cruise mode first.
+            self.flight_mode(client, "CRUISE")
+            resp = self.navigate(client, destination)
+            if not resp:  # Error, out of range for this flight mode:
+                self.flight_mode(client, "DRIFT")
+                self.navigate(client, destination)
+            print(f"{self} navigating to {destination} ({self.nav.flight_mode})")
+            await self.sleep_until_arrival(client)
+
+        # Update the local market conditions.
+        self.nav.waypoint.refresh(client)
+        market = self.nav.waypoint.market
+        trade_good = TradeGood.objects.get(symbol=trade_good)
+        market_trade_good = MarketTradeGood.objects.get(market=market, trade_good=trade_good)
+
+        # BUY: purchase a given amount of the trade good.
+        if action == "BUY":
+            if market_trade_good.type != "EXPORT":
+                print(f"{trade_good} is not exported at {market}")
+                return False
+            # First, check the trade_volume of the good.
+            # If the trade_volume is less than `units`, we need to iterate
+            # the purchase until the desired quantity of units is reached.
+            if units > market_trade_good.trade_volume:
+                # iterate
+                remaining = units  # Running total of purchased good.
+                while remaining > 0:
+                    # Determine how much to purchase.
+                    if remaining > market_trade_good.trade_volume:
+                        outcome = self.purchase_cargo(client, trade_good, remaining)
+                        if outcome:
+                            remaining -= remaining
+                            print(outcome)
+                        else:
+                            return False
+                    else:
+                        outcome = self.purchase_cargo(client, trade_good, market_trade_good.trade_volume)
+                        if outcome:
+                            remaining -= market_trade_good.trade_volume
+                            print(outcome)
+                        else:
+                            return False
+                return True  # Trade concluded
+            else:
+                outcome = self.purchase_cargo(client, trade_good, units)
+                if outcome:
+                    print(outcome)
+                    return True  # Trade concluded
+                else:
+                    return False
+
+    def extract_workflow(self, client, destination: str, resource: str):
+        """Carry out an automated resource extraction workflow.
+        """
+        pass
 
 
 class CargoType(models.Model):
@@ -801,17 +870,133 @@ class MarketTradeGood(models.Model):
     def waypoint_display(self):
         return str(self.market.waypoint)
 
+    @property
+    def symbol(self):
+        return self.trade_good.symbol
+
 
 class Shipyard(models.Model):
     waypoint = models.OneToOneField(Waypoint, on_delete=models.PROTECT)
     ship_types = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
-    transactions = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
-    ships = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
     modifications_fee = models.PositiveIntegerField(default=0)
 
-    def update(self):
-        # TODO
-        pass
+    def __str__(self):
+        return self.waypoint.symbol
+
+    def update(self, data):
+        """Update from passed-in data."""
+        self.ship_types = [t["type"] for t in data["shipTypes"]]
+        self.modifications_fee = data["modificationsFee"]
+        self.save()
+        if "transactions" in data:
+            for t in data["transactions"]:
+                transaction, created = ShipyardTransaction.objects.get_or_create(
+                    shipyard=self,
+                    ship_symbol=t["shipSymbol"],
+                    ship_type=t["shipType"],
+                    price=t["price"],
+                    agent=Agent.objects.get(symbol=t["agentSymbol"]),
+                    timestamp=t["timestamp"],
+                )
+        if "ships" in data:
+            for s in data["ships"]:
+                ship, created = ShipyardShip.objects.get_or_create(
+                    shipyard=self,
+                    type=s["type"],
+                    name=s["name"],
+                    description=s["description"],
+                )
+                ship.supply = s["supply"]
+                ship.activity = s["activity"] if "activity" in s else None
+                ship.purchase_price = s["purchasePrice"]
+                ship.frame = s["frame"]
+                ship.reactor = s["reactor"]
+                ship.engine = s["engine"]
+                ship.crew = s["crew"]
+                ship.save()
+
+                # Ship modules
+                ship.modules.clear()
+                for module_data in s["modules"]:
+                    if not ShipModule.objects.filter(symbol=module_data["symbol"]).exists():
+                        module = ShipModule(
+                            symbol=module_data["symbol"],
+                            name=module_data["name"],
+                            description=module_data["description"],
+                        )
+                        if "capacity" in module_data:
+                            module.capacity = module_data["capacity"]
+                        if "range" in module_data:
+                            module.range = module_data["range"]
+                        if "requirements" in module_data:
+                            module.requirements = module_data["requirements"]
+                        module.save()
+                    else:
+                        module = ShipModule.objects.get(symbol=module_data["symbol"])
+                    ship.modules.add(module)
+
+                # Update mounts
+                ship.mounts.clear()
+                for mount_data in s["mounts"]:
+                    if not ShipMount.objects.filter(symbol=mount_data["symbol"]).exists():
+                        mount = ShipMount(
+                            symbol=mount_data["symbol"],
+                            name=mount_data["name"],
+                            description=mount_data["description"],
+                        )
+                        if "strength" in mount_data:
+                            mount.strength = mount_data["strength"]
+                        if "deposits" in mount_data:
+                            mount.deposits = mount_data["deposits"]
+                        if "requirements" in mount_data:
+                            mount.requirements = mount_data["requirements"]
+                        mount.save()
+                    else:
+                        mount = ShipMount.objects.get(symbol=mount_data["symbol"])
+                    ship.mounts.add(mount)
+
+    @property
+    @display(description="ships available")
+    def ships_display(self):
+        return ", ".join(str(ship) for ship in self.ships.all())
+
+
+class ShipyardShip(models.Model):
+    shipyard = models.ForeignKey(Shipyard, related_name="ships", on_delete=models.PROTECT)
+    type = models.CharField(max_length=64, db_index=True)
+    name = models.CharField(max_length=128)
+    description = models.TextField(null=True, blank=True)
+    supply = models.CharField(max_length=32, null=True, blank=True)
+    activity = models.CharField(max_length=32, null=True, blank=True)
+    purchase_price = models.PositiveIntegerField(default=0)
+    frame = models.JSONField(default=dict)
+    reactor = models.JSONField(default=dict)
+    engine = models.JSONField(default=dict)
+    modules = models.ManyToManyField(ShipModule)
+    mounts = models.ManyToManyField(ShipMount)
+    crew = models.JSONField(default=dict)
+
+    def __str__(self):
+        return f"{self.name} ({self.type_display})"
+
+    @property
+    def type_display(self):
+        return self.type.replace("_", " ").capitalize()
+
+
+class ShipyardTransaction(models.Model):
+    shipyard = models.ForeignKey(Shipyard, related_name="transactions", on_delete=models.CASCADE)
+    ship_symbol = models.CharField(max_length=32, null=True, blank=True)  # Deprecated in API
+    ship_type = models.CharField(max_length=64)
+    price = models.PositiveIntegerField(default=0)
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField()
+
+    class Meta:
+        ordering = ("timestamp",)
+
+    def __str__(self):
+        return f"{self.shipyard} {self.ship_type} for {self.price}"
 
 
 class Construction(models.Model):
@@ -819,6 +1004,6 @@ class Construction(models.Model):
     materials = ArrayField(base_field=models.CharField(max_length=32), blank=True, null=True)
     is_complete = models.BooleanField(default=False)
 
-    def update(self):
+    def update(self, data):
         # TODO
         pass
