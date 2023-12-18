@@ -255,6 +255,8 @@ class ShipNav(models.Model):
         arrival = self.get_arrival()
         if arrival:
             now = datetime.now(timezone.utc)
+            if arrival < now:
+                return f"in the past ({arrival.astimezone(TZ).strftime('%d-%b-%Y %H:%M:%S')})"
             return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d-%b-%Y %H:%M:%S')})"
         else:
             return ""
@@ -373,6 +375,9 @@ class Ship(models.Model):
         self.save()
         # Update ship.nav
         self.nav.update(data["nav"])
+
+        # Schedule a refresh of this ship's data on arrival.
+        client.queue.enqueue_at(self.nav.get_arrival(), self.refresh, client)
 
         return f"{self} en route to {self.nav.route['destination']['symbol']}, arrival in {self.nav.arrival_display()}"
 
@@ -509,6 +514,7 @@ class Ship(models.Model):
         if "error" in data:
             if logging:
                 print(data["error"]["message"])
+                print(f"Inputs: trade_good={trade_good}, units={units}")
             return False
 
         # data contains: agent, cargo, transaction
@@ -553,8 +559,12 @@ class Ship(models.Model):
         if not self.is_docked:
             self.dock(client)
 
+        transactions = []
+
         for cargo in self.cargo.all():
-            cargo.sell(client)
+            transactions.append(cargo.sell(client))
+
+        return transactions
 
     def refresh(self, client):
         data = client.get_ship(self.symbol)
@@ -592,15 +602,16 @@ class Ship(models.Model):
         return destinations
 
     def sleep_until_arrival(self, client):
+        """Sleep (blocking) until the scheduled arrival time for this ship.
+        """
         now = datetime.now(timezone.utc)
         arrival = datetime.fromisoformat(self.nav.route['arrival'])
         pause = (arrival - now).seconds + 1
         print(f"Sleeping {self.nav.arrival_display()}")
         sleep(pause)
-        self.refresh(client)
 
     def trade_workflow(self, client, export_waypoint: str, import_waypoint: str, trade_good_symbol: str, units: int = None):
-        """Carry out an automated trade workflow for this ship
+        """Carry out an automated trade workflow for this ship.
         TODO: make this function non-blocking, in a separate thread.
         """
         # If necessary, navigate to the exporter waypoint.
