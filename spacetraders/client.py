@@ -1,4 +1,5 @@
 from django.conf import settings
+import django_rq
 from ratelimit import limits, sleep_and_retry
 from requests import Session
 from .utils import infer_system_symbol
@@ -14,6 +15,7 @@ class Client(Session):
         self.headers["Accept"] = "application/json"
         self.headers["Content-Type"] = "application/json"
         self.headers["Authorization"] = f"Bearer {settings.API_TOKEN}"
+        self.queue = django_rq.get_queue()
 
     def get_server_status(self):
         """Get server status.
