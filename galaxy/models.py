@@ -928,7 +928,7 @@ class Transaction(models.Model):
     timestamp = models.DateTimeField()
 
     class Meta:
-        ordering = ("timestamp",)
+        ordering = ("-timestamp",)
 
     def __str__(self):
         return f"{self.ship_symbol} {self.type.lower()} {self.units} {self.trade_good} for {self.total_price}"

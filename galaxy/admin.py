@@ -12,6 +12,7 @@ from .models import (
     MarketTradeGood,
     Shipyard,
     ShipyardShip,
+    Transaction,
 )
 
 
@@ -143,3 +144,11 @@ class ShipyardAdmin(ReadOnlyModelAdmin):
 class ShipyardShipAdmin(ReadOnlyModelAdmin):
     list_display = ("shipyard", "type", "name", "purchase_price")
     readonly_fields = [field.name for field in ShipyardShip._meta.concrete_fields]
+
+
+@register(Transaction)
+class TransactionAdmin(ReadOnlyModelAdmin):
+    date_hierarchy = "timestamp"
+    list_display = ("market", "ship_symbol", "trade_good", "type", "units", "total_price", "timestamp")
+    list_filter = ("type", "ship_symbol")
+    readonly_fields = [field.name for field in Transaction._meta.concrete_fields]
