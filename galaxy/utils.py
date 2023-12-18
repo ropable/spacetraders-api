@@ -319,6 +319,8 @@ def get_trade_routes(ship):
     paths = sorted(paths)
     graph = get_graph(paths)
     all_paths = depth_first_search(graph, ship.nav.waypoint.symbol)
+    if not all_paths:  # Nil routes from the current location.
+        return []
     max_len = max(len(p) for p in all_paths)
     # Analyze the longest group of paths only.
     analyze_paths = [p for p in all_paths if len(p) >= max_len - 2]

@@ -912,6 +912,8 @@ class Market(models.Model):
                 market_trade_good.save()
 
     def trade_good_data(self):
+        """Returns a boolean whether detailed market trade good data is known about this market.
+        """
         return MarketTradeGood.objects.filter(market=self).exists()
 
 
