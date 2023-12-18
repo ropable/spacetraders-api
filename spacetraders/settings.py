@@ -23,6 +23,7 @@ ROOT_URLCONF = "spacetraders.urls"
 WSGI_APPLICATION = "spacetraders.wsgi.application"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 API_URL = API_URL_V2 = "https://api.spacetraders.io/v2"
+API_TOKEN = os.environ.get("API_TOKEN", "PlaceholderToken")
 
 INSTALLED_APPS = [
     "django.contrib.admin",

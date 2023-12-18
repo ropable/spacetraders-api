@@ -1,15 +1,7 @@
-import os
-from pathlib import Path
+from django.conf import settings
 from ratelimit import limits, sleep_and_retry
 from requests import Session
 from .utils import infer_system_symbol
-
-
-d = Path(__file__).resolve().parents[1]
-dot_env = os.path.join(str(d), ".env")
-if os.path.exists(dot_env):
-    from dotenv import load_dotenv
-    load_dotenv()
 
 
 class Client(Session):
@@ -17,58 +9,41 @@ class Client(Session):
     API endpoints. Derives the authentication token from the `API_TOKEN`
     environment variable.
     """
-    def __init__(self, token=None, api_url=None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        if token is None:
-            self.token = os.environ.get("API_TOKEN")
-        else:
-            self.token = token
-
-        if api_url is None:
-            if os.environ.get("API_URL", None):
-                self.api_url = os.environ.get("API_URL")
-            else:
-                # Default to using the v2 API.
-                self.api_url = "https://api.spacetraders.io/v2"
-        else:
-            self.api_url = api_url
-
         self.headers["Accept"] = "application/json"
         self.headers["Content-Type"] = "application/json"
-
-        if self.token:
-            self.headers["Authorization"] = f"Bearer {self.token}"
+        self.headers["Authorization"] = f"Bearer {settings.API_TOKEN}"
 
     def get_server_status(self):
         """Get server status.
         """
-        resp = self.get(f"{self.api_url}/")
+        resp = self.get(f"{settings.API_URL}/")
         resp.raise_for_status()
         return resp.json()
 
     def register_agent(self, symbol: str, email: str = None, faction: str = "COSMIC"):
         """Register a new player agent and return an authentication token.
         """
-        if self.token:
-            raise Exception("Already configured with token")
+        # Remove the existing bearer token.
+        self.headers.pop("Authorization")
 
         data = {
             "faction": faction,
             "symbol": symbol,
         }
         if email:
-            data["emai"] = email
+            data["email"] = email
 
-        resp = self.post(f"{self.api_url}/register", json=data)
+        resp = self.post(f"{settings.API_URL}/register", json=data)
         resp.raise_for_status()
         data = resp.json()["data"]
 
-        self.token = data["token"]
-        self.headers["Authorization"] = f"Bearer {self.token}"
+        self.headers["Authorization"] = f"Bearer {data['token']}"
         token = open("BEARER_TOKEN", "w")
         token.write(data["token"])
         print("Token written to file")
+
         return data
 
     # ----------------------------------------------------------------
@@ -87,7 +62,7 @@ class Client(Session):
         data = True
 
         while data:
-            resp = self.get(f"{self.api_url}/agents", params=params)
+            resp = self.get(f"{settings.API_URL}/agents", params=params)
             resp.raise_for_status()
             data = resp.json()["data"]
             if data:
@@ -99,7 +74,7 @@ class Client(Session):
     def get_agent(self):
         """Get the player agent's details from the game server.
         """
-        resp = self.get(f"{self.api_url}/my/agent")
+        resp = self.get(f"{settings.API_URL}/my/agent")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -119,7 +94,7 @@ class Client(Session):
         data = True
 
         while data:
-            resp = self.get(f"{self.api_url}/my/contracts", params=params)
+            resp = self.get(f"{settings.API_URL}/my/contracts", params=params)
             resp.raise_for_status()
             data = resp.json()["data"]
             if data:
@@ -131,14 +106,14 @@ class Client(Session):
     def get_contract(self, contract_id: str):
         """Get a single contract's details.
         """
-        resp = self.get(f"{self.api_url}/my/contracts/{contract_id}")
+        resp = self.get(f"{settings.API_URL}/my/contracts/{contract_id}")
         resp.raise_for_status()
         return resp.json()["data"]
 
     def accept_contract(self, contract_id: str):
         """Accept a single contract.
         """
-        resp = self.post(f"{self.api_url}/my/contracts/{contract_id}/accept")
+        resp = self.post(f"{settings.API_URL}/my/contracts/{contract_id}/accept")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -150,7 +125,7 @@ class Client(Session):
             "tradeSymbol": trade_symbol,
             "units": units,
         }
-        resp = self.post(f"{self.api_url}/my/contracts/{contract_id}/deliver", json=data)
+        resp = self.post(f"{settings.API_URL}/my/contracts/{contract_id}/deliver", json=data)
         try:
             resp.raise_for_status()
             return resp.json()["data"]
@@ -161,7 +136,7 @@ class Client(Session):
     def fulfill_contract(self, contract_id: str):
         """Fulfill a contract.
         """
-        resp = self.post(f"{self.api_url}/my/contracts/{contract_id}/accept")
+        resp = self.post(f"{settings.API_URL}/my/contracts/{contract_id}/accept")
         try:
             resp.raise_for_status()
             return resp.json()["data"]
@@ -185,7 +160,7 @@ class Client(Session):
         data = True
 
         while data:
-            resp = self.get(f"{self.api_url}/factions", params=params)
+            resp = self.get(f"{settings.API_URL}/factions", params=params)
             resp.raise_for_status()
             data = resp.json()["data"]
             if data:
@@ -197,7 +172,7 @@ class Client(Session):
     def get_faction(self, symbol: str):
         """Fetch a single factions's details.
         """
-        resp = self.get(f"{self.api_url}/factions/{symbol}")
+        resp = self.get(f"{settings.API_URL}/factions/{symbol}")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -217,7 +192,7 @@ class Client(Session):
         data = True
 
         while data:
-            resp = self.get(f"{self.api_url}/my/ships", params=params)
+            resp = self.get(f"{settings.API_URL}/my/ships", params=params)
             resp.raise_for_status()
             data = resp.json()["data"]
             if data:
@@ -234,7 +209,7 @@ class Client(Session):
             "waypointSymbol": waypoint_symbol,
         }
 
-        resp = self.post(f"{self.api_url}/my/ships", json=data)
+        resp = self.post(f"{settings.API_URL}/my/ships", json=data)
         try:
             resp.raise_for_status()
             return resp.json()["data"]
@@ -245,35 +220,35 @@ class Client(Session):
     def get_ship(self, symbol: str):
         """Get the details of a single ship under the player's ownership.
         """
-        resp = self.get(f"{self.api_url}/my/ships/{symbol}")
+        resp = self.get(f"{settings.API_URL}/my/ships/{symbol}")
         resp.raise_for_status()
         return resp.json()["data"]
 
     def orbit_ship(self, symbol: str):
         """Attempt to move a ship into orbit.
         """
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/orbit")
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/orbit")
         resp.raise_for_status()
         return resp.json()["data"]
 
     def get_ship_cooldown(self, symbol: str):
         """Get the details of a ship's reactor cooldown.
         """
-        resp = self.get(f"{self.api_url}/my/ships/{symbol}/cooldown")
+        resp = self.get(f"{settings.API_URL}/my/ships/{symbol}/cooldown")
         resp.raise_for_status()
         return resp.json()["data"]
 
     def dock_ship(self, symbol: str):
         """Attempt to dock a ship at the current location.
         """
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/dock")
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/dock")
         resp.raise_for_status()
         return resp.json()["data"]
 
     def extract_resources(self, symbol: str):
         """Extract resources from a waypoint into a ship.
         """
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/extract")
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/extract")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -283,7 +258,7 @@ class Client(Session):
         data = {
             "survey": survey,
         }
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/extract/survey", json=data)
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/extract/survey", json=data)
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -295,7 +270,7 @@ class Client(Session):
             "symbol": symbol,
             "units": units,
         }
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/jettison", json=data)
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/jettison", json=data)
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -308,7 +283,7 @@ class Client(Session):
         data = {
             "flightMode": flight_mode,
         }
-        resp = self.patch(f"{self.api_url}/my/ships/{symbol}/nav", json=data)
+        resp = self.patch(f"{settings.API_URL}/my/ships/{symbol}/nav", json=data)
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -318,7 +293,7 @@ class Client(Session):
         data = {
             "waypointSymbol": waypoint,
         }
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/navigate", json=data)
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/navigate", json=data)
         try:
             resp.raise_for_status()
             return resp.json()["data"]
@@ -334,7 +309,7 @@ class Client(Session):
         if units:
             data["units":units]
 
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/refuel", json=data)
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/refuel", json=data)
         try:
             resp.raise_for_status()
             return resp.json()["data"]
@@ -350,7 +325,7 @@ class Client(Session):
             "units": units,
         }
 
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/sell", json=data)
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/sell", json=data)
         try:
             resp.raise_for_status()
             return resp.json()["data"]
@@ -366,7 +341,7 @@ class Client(Session):
             "units": units,
         }
 
-        resp = self.post(f"{self.api_url}/my/ships/{symbol}/purchase", json=data)
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/purchase", json=data)
         try:
             resp.raise_for_status()
             return resp.json()["data"]
@@ -390,7 +365,7 @@ class Client(Session):
         data = True
 
         while data:
-            resp = self.get(f"{self.api_url}/systems", params=params)
+            resp = self.get(f"{settings.API_URL}/systems", params=params)
             resp.raise_for_status()
             data = resp.json()["data"]
             if data:
@@ -402,7 +377,7 @@ class Client(Session):
     def get_system(self, symbol: str):
         """Get the details for a single system.
         """
-        resp = self.get(f"{self.api_url}/systems/{symbol}")
+        resp = self.get(f"{settings.API_URL}/systems/{symbol}")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -424,7 +399,7 @@ class Client(Session):
 
         while data:
             resp = self.get(
-                f"{self.api_url}/systems/{symbol}/waypoints", params=params
+                f"{settings.API_URL}/systems/{symbol}/waypoints", params=params
             )
             resp.raise_for_status()
             data = resp.json()["data"]
@@ -439,7 +414,7 @@ class Client(Session):
         """
         if not system_symbol:  # Infer the system symbol from the waypoint symbol.
             system_symbol = infer_system_symbol(symbol)
-        resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}")
+        resp = self.get(f"{settings.API_URL}/systems/{system_symbol}/waypoints/{symbol}")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -448,7 +423,7 @@ class Client(Session):
         """
         if not system_symbol:  # Infer the system symbol from the waypoint symbol.
             system_symbol = infer_system_symbol(symbol)
-        resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/market")
+        resp = self.get(f"{settings.API_URL}/systems/{system_symbol}/waypoints/{symbol}/market")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -457,7 +432,7 @@ class Client(Session):
         """
         if not system_symbol:  # Infer the system symbol from the waypoint symbol.
             system_symbol = infer_system_symbol(symbol)
-        resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/shipyard")
+        resp = self.get(f"{settings.API_URL}/systems/{system_symbol}/waypoints/{symbol}/shipyard")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -466,7 +441,7 @@ class Client(Session):
         """
         if not system_symbol:  # Infer the system symbol from the waypoint symbol.
             system_symbol = infer_system_symbol(symbol)
-        resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/jump-gate")
+        resp = self.get(f"{settings.API_URL}/systems/{system_symbol}/waypoints/{symbol}/jump-gate")
         resp.raise_for_status()
         return resp.json()["data"]
 
@@ -475,7 +450,7 @@ class Client(Session):
         """
         if not system_symbol:  # Infer the system symbol from the waypoint symbol.
             system_symbol = infer_system_symbol(symbol)
-        resp = self.get(f"{self.api_url}/systems/{system_symbol}/waypoints/{symbol}/construction")
+        resp = self.get(f"{settings.API_URL}/systems/{system_symbol}/waypoints/{symbol}/construction")
         resp.raise_for_status()
         return resp.json()["data"]
 
