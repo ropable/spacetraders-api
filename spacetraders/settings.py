@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django_extensions",
+    "django_rq",
     "galaxy",
 ]
 
@@ -141,9 +142,20 @@ LOGGING = {
             "handlers": ["console"],
             "level": "WARNING",
         },
-        "harvester": {
+        "spacetraders": {
             "handlers": ["spacetraders"],
             "level": "INFO",
         },
     }
+}
+
+
+# django-rq
+RQ_QUEUES = {
+    "default": {
+        "HOST": "localhost",
+        "PORT": 6379,
+        "DB": 0,
+        "DEFAULT_TIMEOUT": 360,
+    },
 }
