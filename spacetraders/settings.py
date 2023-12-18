@@ -122,7 +122,13 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {"format": "%(asctime)s %(levelname)-12s %(name)-12s %(message)s"},
+        "verbose": {
+            "format": "%(asctime)s %(levelname)-12s %(name)-12s %(message)s",
+        },
+        "rq_console": {
+            "format": "%(asctime)s %(message)s",
+            "datefmt": "%H:%M:%S",
+        },
     },
     "handlers": {
         "console": {
@@ -137,6 +143,12 @@ LOGGING = {
             "stream": sys.stdout,
             "level": "INFO",
         },
+        "rq_console": {
+            "level": "DEBUG",
+            "class": "rq.logutils.ColorizingStreamHandler",
+            "formatter": "rq_console",
+            "exclude": ["%(asctime)s"],
+        },
     },
     "loggers": {
         "django": {
@@ -146,6 +158,10 @@ LOGGING = {
         "spacetraders": {
             "handlers": ["spacetraders"],
             "level": "INFO",
+        },
+        "rq.worker": {
+            "handlers": ["rq_console"],
+            "level": "DEBUG"
         },
     }
 }
