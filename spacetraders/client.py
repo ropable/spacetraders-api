@@ -256,10 +256,46 @@ class Client(Session):
         resp.raise_for_status()
         return resp.json()["data"]
 
+    def get_ship_cooldown(self, symbol: str):
+        """Get the details of a ship's reactor cooldown.
+        """
+        resp = self.get(f"{self.api_url}/my/ships/{symbol}/cooldown")
+        resp.raise_for_status()
+        return resp.json()["data"]
+
     def dock_ship(self, symbol: str):
         """Attempt to dock a ship at the current location.
         """
         resp = self.post(f"{self.api_url}/my/ships/{symbol}/dock")
+        resp.raise_for_status()
+        return resp.json()["data"]
+
+    def extract_resources(self, symbol: str):
+        """Extract resources from a waypoint into a ship.
+        """
+        resp = self.post(f"{self.api_url}/my/ships/{symbol}/extract")
+        resp.raise_for_status()
+        return resp.json()["data"]
+
+    def extract_resources_with_survey(self, symbol: str, survey: dict):
+        """Extract resources from a waypoint into a ship.
+        """
+        data = {
+            "survey": survey,
+        }
+        resp = self.post(f"{self.api_url}/my/ships/{symbol}/extract/survey", json=data)
+        resp.raise_for_status()
+        return resp.json()["data"]
+
+    def jettison_cargo(self, symbol: str, units: int):
+        """Jettison the given cargo type from a ship.
+        If `units` is None, jettison the full quantity.
+        """
+        data = {
+            "symbol": symbol,
+            "units": units,
+        }
+        resp = self.post(f"{self.api_url}/my/ships/{symbol}/jettison", json=data)
         resp.raise_for_status()
         return resp.json()["data"]
 

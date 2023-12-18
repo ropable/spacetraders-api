@@ -127,7 +127,7 @@ class MarketAdmin(ReadOnlyModelAdmin):
 @register(MarketTradeGood)
 class MarketTradeGoodAdmin(ReadOnlyModelAdmin):
 
-    list_display = ("waypoint_display", "symbol", "type", "supply", "activity", "purchase_price", "sell_price", "trade_volume")
+    list_display = ("waypoint_display", "trade_good", "symbol", "type", "supply", "activity", "purchase_price", "sell_price", "trade_volume")
     list_filter = ("type", "supply", "activity")
     readonly_fields = [field.name for field in MarketTradeGood._meta.concrete_fields]
     search_fields = ("market__waypoint__symbol", "trade_good__name")
