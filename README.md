@@ -84,10 +84,10 @@ while len(waypoints_to_visit) > 0:
         print(f"Navigating ship to {destination}")
         # Try travelling to the waypoint in cruise mode first.
         ship.flight_mode(client, "CRUISE")
-        resp = ship.navigate(client, destination.symbol)
-        if not resp:  # Error, out of range for this flight mode:
+        if ship.nav.get_fuel_cost(destination.coords) >= ship.fuel["current"]:
+            print("Changing to DRIFT mode")
             ship.flight_mode(client, "DRIFT")
-            ship.navigate(client, destination.symbol)
+        ship.navigate(client, destination.symbol)
         ship.sleep_until_arrival(client)
         ship.refresh(client)
     # Refresh waypoint info

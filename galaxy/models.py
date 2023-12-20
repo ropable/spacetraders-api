@@ -993,11 +993,20 @@ class MarketTradeGood(models.Model):
     purchase_price = models.PositiveIntegerField(default=0)
     sell_price = models.PositiveIntegerField(default=0)
 
+    trade_matches = models.ManyToManyField("self", symmetrical=True)
+
     class Meta:
         unique_together = ("market", "trade_good", "type")
 
     def __str__(self):
         return f"{self.market.waypoint.symbol} - {self.trade_good} ({self.type.lower()})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Add any matching imports to an export instance.
+        if self.type == "EXPORT":
+            for good in MarketTradeGood.objects.filter(trade_good=self.trade_good, type="IMPORT"):
+                self.trade_matches.add(good)
 
     @property
     @display(description="waypoint")
@@ -1023,6 +1032,19 @@ class MarketTradeGood(models.Model):
         if self.type == "IMPORT":
             suppliers = MarketTradeGood.objects.filter(type="EXPORT", trade_good=self.trade_good)
             return [d.market for d in suppliers]
+        else:
+            return None
+
+    def get_arbitrage(self):
+        """For an export, return the list of purchase markets, their distance and the spread value.
+        """
+        if self.type == "EXPORT":
+            arbitrage = []
+            for match in self.trade_matches.all():
+                distance = int(match.market.waypoint.distance(self.market.waypoint.coords))
+                spread = match.purchase_price - self.sell_price
+                arbitrage.append((match.market, distance, spread))
+            return arbitrage
         else:
             return None
 
