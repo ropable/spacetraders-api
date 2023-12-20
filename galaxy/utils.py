@@ -301,6 +301,24 @@ def populate_shipyards(client):
         print(f"Updated shipyard {shipyard}")
 
 
+def get_trade_pairs(system_symbol: str):
+    """Return the set of all export/import pairs in a given system in the format:
+        (
+            (exporter waypoint symbol, importer waypoint symbol, trade good symbol, distance, spread, trade efficiency),
+            ...
+        )
+    """
+    market_tradegoods = MarketTradeGood.objects.filter(market__waypoint__system__symbol=system_symbol)
+    paths = set()
+    for exp in market_tradegoods.filter(type="EXPORT"):
+        for imp in market_tradegoods.filter(type="IMPORT"):
+            if imp.trade_good == exp.trade_good:
+                distance = int(exp.market.waypoint.distance(imp.market.waypoint.coords))
+                spread = imp.purchase_price - exp.sell_price
+                paths.add((exp.market.waypoint.symbol, imp.market.waypoint.symbol, exp.trade_good.symbol, distance, spread, round(spread / distance, ndigits=1)))
+    return sorted(paths)
+
+
 def get_trade_routes(ship):
     """For a given starting waypoint, return the set of all trade routes for the system.
     Output:
