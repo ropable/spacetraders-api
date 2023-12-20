@@ -131,9 +131,6 @@ class Waypoint(models.Model):
     def __str__(self):
         return f"{self.symbol} ({self.type_display})"
 
-    def subsystem_symbol(self):
-        return self.symbol.split("-")[-1]
-
     def update(self, data):
         """Update object from passed-in data."""
         if "orbits" in data and data["orbits"]:
@@ -173,6 +170,11 @@ class Waypoint(models.Model):
         # TODO: shipyard, jump gate
 
         return f"{self} data refreshed from server"
+
+    @property
+    @display(description="suffix")
+    def symbol_suffix(self):
+        return self.symbol.split("-")[-1]
 
     @property
     @display(description="type")

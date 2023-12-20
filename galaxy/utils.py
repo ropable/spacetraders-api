@@ -183,6 +183,8 @@ def set_agent(client):
     return agent
 
 
+@sleep_and_retry
+@limits(calls=30, period=60)
 def populate_ships(client):
     ships = client.list_ships()
     agent_data = client.get_agent()
@@ -230,6 +232,8 @@ def populate_ship(client, agent, data):
     return ship
 
 
+@sleep_and_retry
+@limits(calls=30, period=60)
 def populate_contracts(client):
     """Populate Contract instances from the game server.
     """
@@ -313,6 +317,7 @@ def get_trade_pairs(system_symbol: str):
     for exp in market_tradegoods.filter(type="EXPORT"):
         for imp in market_tradegoods.filter(type="IMPORT"):
             if imp.trade_good == exp.trade_good:
+                exp.trade_matches.add(imp)
                 distance = int(exp.market.waypoint.distance(imp.market.waypoint.coords))
                 spread = imp.purchase_price - exp.sell_price
                 paths.add((exp.market.waypoint.symbol, imp.market.waypoint.symbol, exp.trade_good.symbol, distance, spread, round(spread / distance, ndigits=1)))

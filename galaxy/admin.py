@@ -122,14 +122,14 @@ class MarketAdmin(ReadOnlyModelAdmin):
     list_display = ("waypoint", "exports_display", "imports_display", "exchange_display")
     list_filter = (ExportFilter, ImportFilter)
     readonly_fields = [field.name for field in Market._meta.concrete_fields]
-    search_fields = ("waypoint__symbol",)
+    search_fields = ("waypoint__symbol", "waypoint__system__symbol")
 
 
 @register(MarketTradeGood)
 class MarketTradeGoodAdmin(ReadOnlyModelAdmin):
 
     list_display = ("waypoint_display", "trade_good", "symbol", "type", "supply", "activity", "purchase_price", "sell_price", "trade_volume")
-    list_filter = ("type", "supply", "activity")
+    list_filter = ("type", "supply", "activity", "market")
     readonly_fields = [field.name for field in MarketTradeGood._meta.concrete_fields]
     search_fields = ("market__waypoint__symbol", "trade_good__name")
 
