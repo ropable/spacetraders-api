@@ -225,8 +225,8 @@ class ShipNav(models.Model):
     system = models.ForeignKey(System, on_delete=models.PROTECT, null=True, blank=True)
     waypoint = models.ForeignKey(Waypoint, on_delete=models.PROTECT, null=True, blank=True)
     route = models.JSONField(default=dict)
-    status = models.CharField(max_length=32)
-    flight_mode = models.CharField(max_length=32)
+    status = models.CharField(max_length=32)  # TODO: choices
+    flight_mode = models.CharField(max_length=32)  # TODO: choices
 
     def __str__(self):
         if self.status in ["DOCKED", "IN_ORBIT"]:
@@ -244,8 +244,7 @@ class ShipNav(models.Model):
         self.save()
 
     def get_arrival(self):
-        """Returns route.arrival as a datetime.
-        """
+        """Returns route.arrival as a datetime."""
         if "arrival" in self.route:
             return datetime.fromisoformat(self.route["arrival"])
         return None
@@ -260,6 +259,42 @@ class ShipNav(models.Model):
             return f"{naturaldelta(arrival - now)} ({arrival.astimezone(TZ).strftime('%d-%b-%Y %H:%M:%S')})"
         else:
             return ""
+
+    def get_fuel_cost(self, coords):
+        """For the passed-in coordinates, calculate the travel fuel cost based on the distance and
+        flight mode.
+        Reference: https://github.com/SpaceTradersAPI/api-docs/wiki/Travel-Fuel-and-Time
+        """
+        distance = self.waypoint.distance(coords)
+        if self.flight_mode in ["CRUISE", "STEALTH"]:
+            return int(distance)
+        elif self.flight_mode == "BURN":
+            return int(distance) * 2
+        elif self.flight_mode == "DRIFT":
+            return 1
+
+        return
+
+    def get_navigate_time(self, distance):
+        """For the passed-in distance, calculate the navigate travel time in seconds.
+        Reference: https://github.com/SpaceTradersAPI/api-docs/wiki/Travel-Fuel-and-Time
+        """
+        distance = int(distance)
+        if distance <= 0:
+            return
+
+        if self.flight_mode == "CRUISE":
+            nav_multiplier = 25.0
+        elif self.flight_mode == "DRIFT":
+            nav_multiplier = 250.0
+        elif self.flight_mode == "BURN":
+            nav_multiplier = 12.5
+        elif self.flight_mode == "STEALTH":
+            nav_multiplier = 30.0
+        else:
+            return
+
+        return round(max(1, distance) * (nav_multiplier / self.ship.engine["speed"]) + 15)
 
     @property
     def status_display(self):
@@ -616,15 +651,16 @@ class Ship(models.Model):
         """
         # If necessary, navigate to the exporter waypoint.
         print("Navigate to exporter step")
-        if self.nav.waypoint.symbol != export_waypoint:
-            # Try navigating to the waypoint in cruise mode first.
-            self.flight_mode(client, "CRUISE")
-            resp = self.navigate(client, export_waypoint)
-            if not resp:  # Error, out of range for this flight mode:
-                self.flight_mode(client, "DRIFT")
-                self.navigate(client, export_waypoint)
-            print(f"{self} navigating to {export_waypoint} ({self.nav.flight_mode})")
-            self.sleep_until_arrival(client)
+        destination = Waypoint.objects.get(symbol=export_waypoint)
+
+        # Default to cruise mode. If the fuel cost exceeds fuel availability, revert to drift mode.
+        self.flight_mode(client, "CRUISE")
+        if self.nav.get_fuel_cost(destination.coords) >= self.fuel["current"]:
+            self.flight_mode(client, "DRIFT")
+
+        print(f"{self} navigating to {destination} ({self.nav.flight_mode})")
+        self.navigate(client, destination.symbol)
+        self.sleep_until_arrival(client)
         # Dock at the destination
         self.dock(client)
 
@@ -681,13 +717,14 @@ class Ship(models.Model):
 
         print("Navigate to importer step")
         # Navigate to the importer waypoint.
-        # Try navigating to the waypoint in cruise mode first.
+        # Default to cruise mode. If the fuel cost exceeds fuel availability, revert to drift mode.
+        destination = Waypoint.objects.get(symbol=import_waypoint)
         self.flight_mode(client, "CRUISE")
-        resp = self.navigate(client, import_waypoint)
-        if not resp:  # Error, out of range for this flight mode:
+        if self.nav.get_fuel_cost(destination.coords) >= self.fuel["current"]:
             self.flight_mode(client, "DRIFT")
-            self.navigate(client, import_waypoint)
-        print(f"{self} navigating to {import_waypoint} ({self.nav.flight_mode})")
+
+        print(f"{self} navigating to {destination} ({self.nav.flight_mode})")
+        self.navigate(client, destination.symbol)
         self.sleep_until_arrival(client)
         # Dock at the destination
         self.dock(client)
@@ -949,7 +986,7 @@ class MarketTradeGood(models.Model):
     modified = models.DateTimeField(auto_now=True)
     market = models.ForeignKey(Market, on_delete=models.CASCADE)
     trade_good = models.ForeignKey(TradeGood, on_delete=models.PROTECT)
-    type = models.CharField(max_length=32)
+    type = models.CharField(max_length=32)  # TODO: choices
     trade_volume = models.PositiveIntegerField(default=0)
     supply = models.CharField(max_length=32)
     activity = models.CharField(max_length=32, null=True, blank=True)
@@ -970,6 +1007,24 @@ class MarketTradeGood(models.Model):
     @property
     def symbol(self):
         return self.trade_good.symbol
+
+    def get_purchasers(self):
+        """Return the list of purchasers for an export trade good.
+        """
+        if self.type == "EXPORT":
+            purchasers = MarketTradeGood.objects.filter(type="IMPORT", trade_good=self.trade_good)
+            return [d.market for d in purchasers]
+        else:
+            return None
+
+    def get_suppliers(self):
+        """Return the list of suppliers for an import trade good.
+        """
+        if self.type == "IMPORT":
+            suppliers = MarketTradeGood.objects.filter(type="EXPORT", trade_good=self.trade_good)
+            return [d.market for d in suppliers]
+        else:
+            return None
 
 
 class Shipyard(models.Model):

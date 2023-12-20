@@ -23,7 +23,6 @@ def get_graph(paths):
     graph = defaultdict(set)
     for (start, finish) in paths:
         graph[start].add(finish)
-        #graph[finish].add(start)
 
     return graph
 
