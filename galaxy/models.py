@@ -1162,7 +1162,7 @@ class Shipyard(models.Model):
                     ship_symbol=t["shipSymbol"],
                     ship_type=t["shipType"],
                     price=t["price"],
-                    agent=Agent.objects.get(symbol=t["agentSymbol"]),
+                    agent_symbol=t["agentSymbol"],
                     timestamp=t["timestamp"],
                 )
         if "ships" in data:
@@ -1222,7 +1222,7 @@ class Shipyard(models.Model):
                         mount = ShipMount.objects.get(symbol=mount_data["symbol"])
                     ship.mounts.add(mount)
 
-        LOGGER.info("f{self} shipyard updated")
+        LOGGER.info(f"{self} shipyard updated")
 
     @property
     @display(description="ships available")
@@ -1258,7 +1258,7 @@ class ShipyardTransaction(models.Model):
     ship_symbol = models.CharField(max_length=32, null=True, blank=True)  # Deprecated in API
     ship_type = models.CharField(max_length=64)
     price = models.PositiveIntegerField(default=0)
-    agent = models.ForeignKey(Agent, on_delete=models.CASCADE)
+    agent_symbol = models.CharField(max_length=32, null=True, blank=True)  # TODO: make non-nullable when resetting migrations.
     timestamp = models.DateTimeField()
 
     class Meta:
