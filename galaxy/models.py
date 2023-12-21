@@ -28,7 +28,7 @@ class Faction(models.Model):
     name = models.CharField(max_length=128)
     description = models.TextField(null=True, blank=True)
     headquarters = models.ForeignKey("System", on_delete=models.PROTECT, null=True, blank=True)
-    traits = models.ManyToManyField(FactionTrait)
+    traits = models.ManyToManyField(FactionTrait, blank=True)
     is_recruiting = models.BooleanField(default=False)
 
     class Meta:
@@ -68,7 +68,7 @@ class System(models.Model):
     type = models.CharField(max_length=32, db_index=True)
     x = models.IntegerField(editable=False)
     y = models.IntegerField(editable=False)
-    factions = models.ManyToManyField(Faction)
+    factions = models.ManyToManyField(Faction, blank=True)
 
     class Meta:
         ordering = ("sector", "symbol")
@@ -120,8 +120,8 @@ class Waypoint(models.Model):
     orbits = models.ForeignKey(
         "self", related_name="orbitals", on_delete=models.PROTECT, null=True, blank=True)
     faction = models.ForeignKey(Faction, on_delete=models.PROTECT, null=True, blank=True)
-    traits = models.ManyToManyField(WaypointTrait)
-    modifiers = models.ManyToManyField(WaypointModifier)
+    traits = models.ManyToManyField(WaypointTrait, blank=True)
+    modifiers = models.ManyToManyField(WaypointModifier, blank=True)
     is_under_construction = models.BooleanField(default=False)
 
     class Meta:
@@ -342,8 +342,8 @@ class Ship(models.Model):
     reactor = models.JSONField(default=dict)
     engine = models.JSONField(default=dict)
     cooldown = models.JSONField(default=dict)
-    modules = models.ManyToManyField(ShipModule)
-    mounts = models.ManyToManyField(ShipMount)
+    modules = models.ManyToManyField(ShipModule, blank=True)
+    mounts = models.ManyToManyField(ShipMount, blank=True)
     cargo_capacity = models.PositiveIntegerField(default=0)
     cargo_units = models.PositiveIntegerField(default=0)
     fuel = models.JSONField(default=dict)
@@ -867,6 +867,7 @@ class TradeGood(models.Model):
     symbol = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=128)
     description = models.TextField()
+    inputs = models.ManyToManyField("self", symmetrical=False, blank=True)
 
     class Meta:
         ordering = ("symbol",)
@@ -877,9 +878,9 @@ class TradeGood(models.Model):
 
 class Market(models.Model):
     waypoint = models.OneToOneField(Waypoint, on_delete=models.PROTECT)
-    exports = models.ManyToManyField(TradeGood, related_name="exports")
-    imports = models.ManyToManyField(TradeGood, related_name="imports")
-    exchange = models.ManyToManyField(TradeGood, related_name="exchange")
+    exports = models.ManyToManyField(TradeGood, related_name="exports", blank=True)
+    imports = models.ManyToManyField(TradeGood, related_name="imports", blank=True)
+    exchange = models.ManyToManyField(TradeGood, related_name="exchange", blank=True)
 
     def __str__(self):
         return str(self.waypoint)
@@ -995,7 +996,7 @@ class MarketTradeGood(models.Model):
     purchase_price = models.PositiveIntegerField(default=0)
     sell_price = models.PositiveIntegerField(default=0)
 
-    trade_matches = models.ManyToManyField("self", symmetrical=True)
+    trade_matches = models.ManyToManyField("self", symmetrical=True, blank=True)
 
     class Meta:
         unique_together = ("market", "trade_good", "type")
@@ -1148,8 +1149,8 @@ class ShipyardShip(models.Model):
     frame = models.JSONField(default=dict)
     reactor = models.JSONField(default=dict)
     engine = models.JSONField(default=dict)
-    modules = models.ManyToManyField(ShipModule)
-    mounts = models.ManyToManyField(ShipMount)
+    modules = models.ManyToManyField(ShipModule, blank=True)
+    mounts = models.ManyToManyField(ShipMount, blank=True)
     crew = models.JSONField(default=dict)
 
     def __str__(self):
