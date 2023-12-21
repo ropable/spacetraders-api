@@ -4,11 +4,13 @@ from django.contrib.admin import display
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from humanize import naturaldelta
+import logging
 from math import dist
 from time import sleep
 from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo(settings.TIME_ZONE)
+LOGGER = logging.getLogger("spacetraders")
 
 
 class FactionTrait(models.Model):
@@ -60,6 +62,7 @@ class Agent(models.Model):
     def refresh(self, client):
         data = client.get_agent()
         self.update(data)
+        LOGGER.info(f"Refreshed data for {self}")
 
 
 class System(models.Model):
@@ -169,7 +172,9 @@ class Waypoint(models.Model):
 
         # TODO: shipyard, jump gate
 
-        return f"{self} data refreshed from server"
+        msg = f"{self} data refreshed from server"
+        LOGGER.info(msg)
+        return msg
 
     @property
     @display(description="suffix")
@@ -244,6 +249,7 @@ class ShipNav(models.Model):
         self.status = data["status"]
         self.flight_mode = data["flightMode"]
         self.save()
+        LOGGER.info(f"{self.ship} nav updated")
 
     def get_arrival(self):
         """Returns route.arrival as a datetime."""
@@ -305,6 +311,17 @@ class ShipNav(models.Model):
     @property
     def flight_mode_display(self):
         return self.flight_mode.replace("_", " ").capitalize()
+
+    def get_export_markets(self):
+        """Returns the list of market waypoints having exports, sorted nearest > furtherest from this ship.
+        Returns [(<waypoint symbol>, <distance>), ...]
+        """
+        market_waypoints = []
+        waypoints = Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol='MARKETPLACE'))
+        for waypoint in waypoints:
+            if waypoint.market.exports.exists():
+                market_waypoints.append((waypoint.symbol, waypoint.distance(self.waypoint.coords)))
+        return sorted(market_waypoints, key=lambda x: x[1])
 
 
 class ShipModule(models.Model):
@@ -374,6 +391,9 @@ class Ship(models.Model):
 
         data = client.orbit_ship(self.symbol)
         self.nav.update(data["nav"])
+        msg = f"{self} entered orbit at {self.nav.waypoint.symbol}"
+        LOGGER.info(msg)
+        return msg
 
     @property
     def is_in_orbit(self):
@@ -385,6 +405,9 @@ class Ship(models.Model):
 
         data = client.dock_ship(self.symbol)
         self.nav.update(data["nav"])
+        msg = f"{self} docked at {self.nav.waypoint.symbol}"
+        LOGGER.info(msg)
+        return msg
 
     def flight_mode(self, client, mode: str):
         """Set the flight mode for this ship."""
@@ -395,51 +418,56 @@ class Ship(models.Model):
         # Update ship.nav
         self.nav.update(data)
 
-        return f"{self} flight mode set to {mode}"
+        msg = f"{self} flight mode set to {mode}"
+        LOGGER.info(msg)
+        return msg
 
-    def navigate(self, client, waypoint_symbol: str, logging: bool = True):
+    def navigate(self, client, waypoint_symbol: str):
         if not self.is_in_orbit:
             self.orbit(client)
 
         data = client.navigate_ship(self.symbol, waypoint_symbol)
         if "error" in data:
-            if logging:
-                print(data["error"]["message"])
+            LOGGER.error(data["error"]["message"])
             return False
 
         # data contains: fuel, nav
         self.fuel = data["fuel"]
         self.save()
+
         # Update ship.nav
         self.nav.update(data["nav"])
 
         # Schedule a refresh of this ship's data on arrival.
         client.queue.enqueue_at(self.nav.get_arrival(), self.refresh, client)
 
-        return f"{self} en route to {self.nav.route['destination']['symbol']}, arrival in {self.nav.arrival_display()}"
+        msg = f"{self} en route to {self.nav.route['destination']['symbol']}, arrival in {self.nav.arrival_display()}"
+        LOGGER.info(msg)
+        return msg
 
-    def refuel(self, client, units: int = None, from_cargo: bool = False, logging: bool = True):
+    def refuel(self, client, units: int = None, from_cargo: bool = False):
         if not self.is_docked:
             self.dock(client)
+            self.refresh(client)
 
         data = client.refuel_ship(self.symbol, units, from_cargo)
         if "error" in data:
-            if logging:
-                print(data["error"]["message"])
+            LOGGER.error(data["error"]["message"])
             return False
 
         # data contains: agent, fuel, transaction
         self.fuel = data["fuel"]
         self.save()
+
         # Update agent.
         self.agent.update(data["agent"])
-        # Create a transaction
+
+        # Create a transaction for the fuel purchase.
         market = Market.objects.get(waypoint__symbol=data["transaction"]["waypointSymbol"])
-        trade_good = TradeGood.objects.get(symbol=data["transaction"]["tradeSymbol"])
         Transaction.objects.create(
             market=market,
             ship_symbol=data["transaction"]["shipSymbol"],
-            trade_good=trade_good,
+            trade_good=TradeGood.objects.get(symbol="FUEL"),
             type=data["transaction"]["type"],
             units=data["transaction"]["units"],
             price_per_unit=data["transaction"]["pricePerUnit"],
@@ -447,7 +475,9 @@ class Ship(models.Model):
             timestamp=data["transaction"]["timestamp"],
         )
 
-        return f"{self} refueled {data['transaction']['units']} units"
+        msg = f"{self} refueled {data['transaction']['units']} units"
+        LOGGER.info(msg)
+        return msg
 
     def update(self, data):
         """Update ship details from passed-in ship data.
@@ -504,6 +534,8 @@ class Ship(models.Model):
                 mount = ShipMount.objects.get(symbol=mount_data["symbol"])
             self.mounts.add(mount)
 
+        LOGGER.info(f"{self} updated")
+
     def update_cargo(self, data):
         """Update ship cargo from passed-in data.
         """
@@ -544,14 +576,26 @@ class Ship(models.Model):
                 current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["inventory"]])
                 ShipCargoItem.objects.filter(ship=self).exclude(type__in=current_cargo).delete()
 
-    def purchase_cargo(self, client, trade_good: str, units: int, logging: bool = True):
+        LOGGER.info(f"{self} cargo updated")
+
+    def purchase_cargo(self, client, trade_good: str, units: int = None):
         if not self.is_docked:
             self.dock(client)
+
+        # If units is not supplied, purchase the largest amount available.
+        if not units:
+            market = self.nav.waypoint.market
+            market_trade_good = MarketTradeGood.objects.get(market=market, trade_good=TradeGood.objects.get(symbol=trade_good))
+            available_capacity = self.cargo_capacity - self.cargo_units
+            # If the available volume on the market is less than our ship's available capacity, use that.
+            if market_trade_good.trade_volume < available_capacity:
+                units = market_trade_good.trade_volume
+            else:
+                units = available_capacity
+
         data = client.purchase_cargo(self.symbol, trade_good, units)
         if "error" in data:
-            if logging:
-                print(data["error"]["message"])
-                print(f"Inputs: trade_good={trade_good}, units={units}")
+            LOGGER.error(data["error"]["message"])
             return False
 
         # data contains: agent, cargo, transaction
@@ -572,33 +616,38 @@ class Ship(models.Model):
             timestamp=data["transaction"]["timestamp"],
         )
 
-        return f"{self} purchased {transaction.units} units of {trade_good} for {transaction.total_price}"
+        msg = f"{self} purchased {transaction.units} units of {trade_good} for {transaction.total_price}"
+        LOGGER.info(msg)
+        return msg
 
-    def purchase_ship(self, client, ship_type: str, logging: bool = True):
+    def purchase_ship(self, client, ship_type: str, logging):
         """Purchase a ship of the given type at the current waypoint.
         """
         if not self.is_docked:
             self.dock(client)
         data = client.purchase_ship(self.nav.waypoint.symbol, ship_type)
         if "error" in data:
-            if logging:
-                print(data["error"]["message"])
+            LOGGER.error(data["error"]["message"])
             return False
 
         # Populate the new ship in the database.
         from .utils import populate_ship
         ship = populate_ship(client, self.agent, data["ship"])
-        return f"Purchased {ship}"
+        msg = f"Purchased {ship}"
+        LOGGER.info(msg)
+        return msg
 
     def sell_cargo(self, client):
         """Convenience function to try selling all the ship's cargo at the current waypoint.
         """
         if not self.is_docked:
             self.dock(client)
+            self.refresh(client)
 
         transactions = []
 
         for cargo in self.cargo.all():
+            LOGGER.info(f"Selling {cargo}")
             transactions.append(cargo.sell(client))
 
         return transactions
@@ -608,7 +657,9 @@ class Ship(models.Model):
         self.update(data)
         self.update_cargo(data["cargo"])
 
-        return f"{self} data refreshed from server"
+        msg = f"{self} data refreshed from server"
+        LOGGER.info(msg)
+        return msg
 
     def find_destination(self, trait=None, type=None):
         """Return a list of waypoints having the nominated trait, ordered by distance from this ship.
@@ -644,7 +695,9 @@ class Ship(models.Model):
         now = datetime.now(timezone.utc)
         arrival = datetime.fromisoformat(self.nav.route['arrival'])
         pause = (arrival - now).seconds + 1
-        print(f"Sleeping {self.nav.arrival_display()}")
+        msg = f"Sleeping {self.nav.arrival_display()}"
+        LOGGER.info(msg)
+        print(msg)
         sleep(pause)
 
     def trade_workflow(self, client, export_waypoint: str, import_waypoint: str, trade_good_symbol: str, units: int = None):
@@ -742,11 +795,6 @@ class Ship(models.Model):
         else:
             return False
 
-    def extract_workflow(self, client, destination: str, resource: str):
-        """Carry out an automated resource extraction workflow.
-        """
-        pass
-
     @property
     @display(description="mounts")
     def mounts_display(self):
@@ -781,7 +829,7 @@ class ShipCargoItem(models.Model):
     def __str__(self):
         return f"{self.units} units of {self.type} ({self.ship.symbol})"
 
-    def sell(self, client, units: int = None, logging: bool = True):
+    def sell(self, client, units: int = None):
         """Sell this cargo at the ship's current location."""
         if not units:
             units = self.units
@@ -791,8 +839,7 @@ class ShipCargoItem(models.Model):
 
         data = client.sell_cargo(self.ship.symbol, self.type.symbol, units)
         if "error" in data:
-            if logging:
-                print(data["error"]["message"])
+            LOGGER.error(data["error"]["message"])
             return False
 
         # data contains: agent, cargo, transaction
@@ -813,7 +860,9 @@ class ShipCargoItem(models.Model):
             timestamp=data["transaction"]["timestamp"],
         )
 
-        return f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}"
+        msg = f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}"
+        LOGGER.info(msg)
+        return msg
 
 
 class Contract(models.Model):
@@ -838,11 +887,13 @@ class Contract(models.Model):
 
     def accept(self, client):
         data = client.accept_contract(self.contract_id)
+        LOGGER.info(f"Contract {self} accepted")
         self.update(data["contract"])
 
     def update(self, data):
         self.accepted = data["accepted"]
         self.fulfilled = data["fulfilled"]
+        LOGGER.info(f"{self} updated")
         self.save()
 
     @property
@@ -962,10 +1013,48 @@ class Market(models.Model):
                     market_trade_good.activity = good["activity"]
                 market_trade_good.save()
 
+        LOGGER.info(f"Market {self} updated")
+
     def trade_good_data(self):
         """Returns a boolean whether detailed market trade good data is known about this market.
         """
         return MarketTradeGood.objects.filter(market=self).exists()
+
+    def get_arbitrage(self):
+        """Get a list of all arbitrage opportunities for exports from this market. Returns:
+        {
+            "<TRADE GGOOD SYMBOL>": [
+                (<waypoint symbol>, distance, spread, spread/distance),
+                ...
+            ],
+            ...
+        }
+        """
+        market_arbitrage = {}
+        for mtg in self.markettradegood_set.all():
+            arbitrage = mtg.get_arbitrage()
+            if arbitrage:
+                market_arbitrage[mtg.symbol] = arbitrage
+        return market_arbitrage
+
+    def get_best_export(self):
+        """Given the list of export arbitrage opportunities for this market,
+        return the trade with the "best" ratio of spread / distance.
+        Returns (<spread>, <trade good symbol>, <waypoint symbol>) or None.
+        """
+        if not self.exports.exists():
+            return None
+
+        market_arbitrage = self.get_arbitrage()
+        best_trade = (0, None, None)
+        for symbol, options in market_arbitrage.items():
+            if options and options[0][3] > best_trade[0]:
+                best_trade = (options[0][3], symbol, options[0][0])
+
+        if best_trade[-1]:  # Trade has a destination waypoint.
+            return best_trade
+        else:
+            return None
 
 
 class Transaction(models.Model):
@@ -1039,15 +1128,16 @@ class MarketTradeGood(models.Model):
             return None
 
     def get_arbitrage(self):
-        """For an export, return the list of purchase markets, their distance and the spread value.
+        """For an export trade good, return the list of purchase market waypoints, distance, spread
+        and spread/distance ratio.
         """
         if self.type == "EXPORT":
             arbitrage = []
             for match in self.trade_matches.all():
                 distance = int(match.market.waypoint.distance(self.market.waypoint.coords))
                 spread = match.purchase_price - self.sell_price
-                arbitrage.append((match.market, distance, spread))
-            return arbitrage
+                arbitrage.append((match.market.waypoint.symbol, distance, spread, round(spread / distance, 2)))
+            return sorted(arbitrage, key=lambda x: x[3], reverse=True)
         else:
             return None
 
@@ -1131,6 +1221,8 @@ class Shipyard(models.Model):
                     else:
                         mount = ShipMount.objects.get(symbol=mount_data["symbol"])
                     ship.mounts.add(mount)
+
+        LOGGER.info("f{self} shipyard updated")
 
     @property
     @display(description="ships available")

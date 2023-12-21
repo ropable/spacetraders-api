@@ -25,6 +25,50 @@ populate_shipyards(client)
 
 # TODOs
 
+## Autonomous trading behaviour
+
+- [X] Find nearest market(s) with exports
+- [X] Find export with best / most efficient spread
+- [X] Select trade good, destination, quantity
+- [ ] Purchase desired quantity of trade good
+- [ ] Navigate to destination
+- [ ] Wait on arrival
+- [ ] Sell trade good
+
+- [ ] Define a series of tasks, which might have preceding tasks
+- [ ] Find the "active" task and determine what needs to be done next
+
+```
+ship = Ship.objects.first()
+
+if not ship.nav.waypoint.market.exports.all():  # No exports at this market.
+    export_markets = ship.nav.get_export_markets()
+    # Navigate to the nearest market having exports.
+    destination = Waypoint.objects.get(symbol=export_markets[0][0])
+    if ship.nav.get_fuel_cost(destination.coords) >= ship.fuel["current"]:
+        ship.flight_mode(client, "DRIFT")
+    else:
+        ship.flight_mode(client, "CRUISE")
+    ship.navigate(client, destination.symbol)
+    ship.sleep_until_arrival(client)
+    ship.refuel(client)
+
+spread, trade_good_symbol, waypoint_symbol = ship.nav.waypoint.market.get_best_export()
+destination = Waypoint.objects.get(symbol=waypoint_symbol)
+ship.purchase_cargo(client, trade_good_symbol)
+ship.nav.waypoint.refresh(client)
+if ship.nav.get_fuel_cost(destination.coords) >= ship.fuel["current"]:
+    ship.flight_mode(client, "DRIFT")
+else:
+    ship.flight_mode(client, "CRUISE")
+ship.navigate(client, waypoint_symbol)
+ship.sleep_until_arrival(client)
+ship.sell_cargo(client)
+ship.refuel(client)
+ship.nav.waypoint.refresh(client)
+```
+
+
 ## Automate mining procurement contract
 
 Inputs:

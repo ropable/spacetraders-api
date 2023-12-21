@@ -138,16 +138,16 @@ LOGGING = {
             "level": "WARNING",
         },
         "spacetraders": {
-            "class": "logging.StreamHandler",
+            "class": "logging.FileHandler",
             "formatter": "verbose",
-            "stream": sys.stdout,
+            "filename": "spacetraders.log",
             "level": "INFO",
         },
         "rq_console": {
-            "level": "DEBUG",
             "class": "rq.logutils.ColorizingStreamHandler",
             "formatter": "rq_console",
             "exclude": ["%(asctime)s"],
+            "level": "INFO",
         },
     },
     "loggers": {
@@ -161,7 +161,7 @@ LOGGING = {
         },
         "rq.worker": {
             "handlers": ["rq_console"],
-            "level": "DEBUG"
+            "level": "INFO"
         },
     }
 }
