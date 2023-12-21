@@ -31,20 +31,20 @@ class ReadOnlyModelAdmin(ModelAdmin):
 @register(Faction)
 class FactionAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "name", "headquarters", "is_recruiting")
-    readonly_fields = [field.name for field in Faction._meta.concrete_fields]
+    fields = [field.name for field in Faction._meta.concrete_fields]
 
 
 @register(Agent)
 class AgentAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "account_id", "email", "starting_faction", "credits", "modified")
-    readonly_fields = [field.name for field in Agent._meta.concrete_fields]
+    fields = [field.name for field in Agent._meta.concrete_fields]
 
 
 @register(System)
 class SystemAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "sector", "type", "coords")
     list_filter = ("type",)
-    readonly_fields = [field.name for field in System._meta.concrete_fields]
+    fields = [field.name for field in System._meta.concrete_fields]
 
 
 @register(Waypoint)
@@ -65,31 +65,31 @@ class WaypointAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "type_display", "system", "coords", "orbits", "faction", "modified")
     list_filter = ("type", "system", "faction", WaypointTraitFilter)
     search_fields = ("symbol",)
-    readonly_fields = [field.name for field in Waypoint._meta.concrete_fields] + ["orbitals_display"]
+    fields = [field.name for field in Waypoint._meta.concrete_fields] + ["orbitals_display"]
 
 
 @register(WaypointTrait)
 class WaypointTraitAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "name", "description")
-    readonly_fields = [field.name for field in WaypointTrait._meta.concrete_fields]
+    fields = [field.name for field in WaypointTrait._meta.concrete_fields]
 
 
 @register(Ship)
 class ShipAdmin(ReadOnlyModelAdmin):
     list_display = ("symbol", "frame_name", "role", "nav", "modified")
-    readonly_fields = [field.name for field in Ship._meta.concrete_fields] + ["mounts_display", "modules_display"]
+    fields = [field.name for field in Ship._meta.concrete_fields] + ["mounts_display", "modules_display"]
 
 
 @register(Contract)
 class ContractAdmin(ReadOnlyModelAdmin):
     list_display = ("contract_id", "faction", "type", "terms_deadline", "accepted", "fulfilled", "expiration", "modified")
-    readonly_fields = [field.name for field in Contract._meta.concrete_fields] + ["required_goods"]
+    fields = [field.name for field in Contract._meta.concrete_fields] + ["required_goods"]
 
 
 @register(TradeGood)
 class TradeGoodAdmin(ReadOnlyModelAdmin):
-    list_display = ("symbol", "name", "description")
-    readonly_fields = [field.name for field in TradeGood._meta.concrete_fields]
+    list_display = ("name", "symbol", "description")
+    fields = [field.name for field in TradeGood._meta.concrete_fields]
 
 
 @register(Market)
@@ -121,7 +121,7 @@ class MarketAdmin(ReadOnlyModelAdmin):
 
     list_display = ("waypoint", "exports_display", "imports_display", "exchange_display")
     list_filter = (ExportFilter, ImportFilter)
-    readonly_fields = [field.name for field in Market._meta.concrete_fields]
+    fields = [field.name for field in Market._meta.concrete_fields]
     search_fields = ("waypoint__symbol", "waypoint__system__symbol")
 
 
@@ -130,20 +130,20 @@ class MarketTradeGoodAdmin(ReadOnlyModelAdmin):
 
     list_display = ("waypoint_display", "trade_good", "symbol", "type", "supply", "activity", "purchase_price", "sell_price", "trade_volume")
     list_filter = ("type", "supply", "activity", "market")
-    readonly_fields = [field.name for field in MarketTradeGood._meta.concrete_fields]
+    fields = [field.name for field in MarketTradeGood._meta.concrete_fields]
     search_fields = ("market__waypoint__symbol", "trade_good__name")
 
 
 @register(Shipyard)
 class ShipyardAdmin(ReadOnlyModelAdmin):
     list_display = ("waypoint", "ships_display", "modifications_fee")
-    readonly_fields = [field.name for field in Shipyard._meta.concrete_fields]
+    fields = [field.name for field in Shipyard._meta.concrete_fields]
 
 
 @register(ShipyardShip)
 class ShipyardShipAdmin(ReadOnlyModelAdmin):
     list_display = ("shipyard", "type", "name", "purchase_price")
-    readonly_fields = [field.name for field in ShipyardShip._meta.concrete_fields]
+    fields = [field.name for field in ShipyardShip._meta.concrete_fields]
 
 
 @register(Transaction)
@@ -151,4 +151,4 @@ class TransactionAdmin(ReadOnlyModelAdmin):
     date_hierarchy = "timestamp"
     list_display = ("market", "ship_symbol", "trade_good", "type", "units", "total_price", "timestamp")
     list_filter = ("type", "ship_symbol")
-    readonly_fields = [field.name for field in Transaction._meta.concrete_fields]
+    fields = [field.name for field in Transaction._meta.concrete_fields]
