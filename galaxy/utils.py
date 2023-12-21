@@ -228,6 +228,7 @@ def populate_ship(client, agent, data):
         cargo_units=data["cargo"]["units"],
         fuel=data["fuel"],
     )
+    ship.update(data)
     ship.update_cargo(data["cargo"])
     return ship
 

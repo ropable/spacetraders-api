@@ -581,6 +581,7 @@ class Ship(models.Model):
     def purchase_cargo(self, client, trade_good: str, units: int = None):
         if not self.is_docked:
             self.dock(client)
+            self.refresh(client)
 
         # If units is not supplied, purchase the largest amount available.
         if not units:
@@ -620,11 +621,13 @@ class Ship(models.Model):
         LOGGER.info(msg)
         return msg
 
-    def purchase_ship(self, client, ship_type: str, logging):
+    def purchase_ship(self, client, ship_type: str):
         """Purchase a ship of the given type at the current waypoint.
         """
         if not self.is_docked:
             self.dock(client)
+            self.refresh(client)
+
         data = client.purchase_ship(self.nav.waypoint.symbol, ship_type)
         if "error" in data:
             LOGGER.error(data["error"]["message"])
@@ -633,6 +636,8 @@ class Ship(models.Model):
         # Populate the new ship in the database.
         from .utils import populate_ship
         ship = populate_ship(client, self.agent, data["ship"])
+        # Update agent.
+        self.agent.update(data["agent"])
         msg = f"Purchased {ship}"
         LOGGER.info(msg)
         return msg
