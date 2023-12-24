@@ -30,10 +30,10 @@ populate_shipyards(client)
 - [X] Find nearest market(s) with exports
 - [X] Find export with best / most efficient spread
 - [X] Select trade good, destination, quantity
-- [ ] Purchase desired quantity of trade good
-- [ ] Navigate to destination
-- [ ] Wait on arrival
-- [ ] Sell trade good
+- [X] Purchase desired quantity of trade good
+- [X] Navigate to destination
+- [X] Wait on arrival
+- [X] Sell trade good
 
 - [ ] Define a series of tasks, which might have preceding tasks
 - [ ] Find the "active" task and determine what needs to be done next
@@ -107,7 +107,6 @@ waypoints = [wp for wp in Waypoint.objects.all() if (wp.has_trait('COMMON_METAL_
 
 ```python
 from datetime import datetime, timezone
-from time import sleep
 
 ship = Ship.objects.first()
 visited_waypoints = []
