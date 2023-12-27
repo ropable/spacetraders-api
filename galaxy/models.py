@@ -170,7 +170,10 @@ class Waypoint(models.Model):
             data = client.get_market(self.symbol)
             self.market.update(data)
 
-        # TODO: shipyard, jump gate
+        if self.is_shipyard:
+            data = client.get_shipyard(self.symbol)
+            self.shipyard.update(data)
+        # TODO: jump gate
 
         msg = f"{self} data refreshed from server"
         LOGGER.info(msg)
@@ -219,6 +222,15 @@ class Waypoint(models.Model):
             return ", ".join([t.name for t in self.traits.all()])
         else:
             return ""
+
+    def get_export_markets(self):
+        """For a given market waypoint, return a list of other exporter waypoints in the same system
+        sorted by distance.
+        """
+        export_markets = Market.objects.filter(exports__isnull=False, waypoint__system=self.system).distinct()
+        export_waypoints = [(e.waypoint, e.waypoint.distance(self.coords), e.exports_display) for e in export_markets]
+        export_waypoints = sorted(export_waypoints, key=lambda x: x[1])
+        return export_waypoints
 
 
 class Chart(models.Model):
@@ -382,8 +394,22 @@ class Ship(models.Model):
         return self.nav.status == "DOCKED"
 
     @property
+    def is_in_orbit(self):
+        return self.nav.status == "IN_ORBIT"
+
+    @property
     def role(self):
         return self.registration["role"].capitalize()
+
+    @property
+    @display(description="mounts")
+    def mounts_display(self):
+        return ', '.join([str(mount) for mount in self.mounts.all()])
+
+    @property
+    @display(description="modules")
+    def modules_display(self):
+        return ', '.join([str(module) for module in self.modules.all()])
 
     def orbit(self, client):
         if not self.is_docked:
@@ -394,10 +420,6 @@ class Ship(models.Model):
         msg = f"{self} entered orbit at {self.nav.waypoint.symbol}"
         LOGGER.info(msg)
         return msg
-
-    @property
-    def is_in_orbit(self):
-        return self.nav.status == "IN_ORBIT"
 
     def dock(self, client):
         if not self.is_in_orbit:
@@ -441,7 +463,7 @@ class Ship(models.Model):
         # Schedule a refresh of this ship's data on arrival.
         client.queue.enqueue_at(self.nav.get_arrival(), self.refresh, client)
 
-        msg = f"{self} en route to {self.nav.route['destination']['symbol']}, arrival in {self.nav.arrival_display()}"
+        msg = f"{self} en route to {self.nav.route['destination']['symbol']} ({self.nav.flight_mode}), arrival in {self.nav.arrival_display()}"
         LOGGER.info(msg)
         return msg
 
@@ -699,6 +721,8 @@ class Ship(models.Model):
         """
         now = datetime.now(timezone.utc)
         arrival = datetime.fromisoformat(self.nav.route['arrival'])
+        if arrival < now:
+            return
         pause = (arrival - now).seconds + 1
         msg = f"Sleeping {self.nav.arrival_display()}"
         LOGGER.info(msg)
@@ -710,7 +734,6 @@ class Ship(models.Model):
         TODO: make this function non-blocking, in a separate thread.
         """
         # If necessary, navigate to the exporter waypoint.
-        print("Navigate to exporter step")
         destination = Waypoint.objects.get(symbol=export_waypoint)
 
         # Default to cruise mode. If the fuel cost exceeds fuel availability, revert to drift mode.
@@ -742,7 +765,6 @@ class Ship(models.Model):
             units = self.cargo_capacity - self.cargo_units
 
         if units > market_trade_good.trade_volume:
-            print("Purchasing as multiple transactions")
             # iterate
             remaining = units  # Running total of purchased good.
             while remaining > 0:
@@ -765,7 +787,6 @@ class Ship(models.Model):
                         return False
         else:
             # Single purchase
-            print("Purchasing as a single transaction")
             outcome = self.purchase_cargo(client, trade_good_symbol, units)
             if outcome:
                 print(outcome)
@@ -775,7 +796,6 @@ class Ship(models.Model):
         # Update the local market conditions.
         self.nav.waypoint.refresh(client)
 
-        print("Navigate to importer step")
         # Navigate to the importer waypoint.
         # Default to cruise mode. If the fuel cost exceeds fuel availability, revert to drift mode.
         destination = Waypoint.objects.get(symbol=import_waypoint)
@@ -789,7 +809,6 @@ class Ship(models.Model):
         # Dock at the destination
         self.dock(client)
 
-        print("Sell step")
         # Sell the cargo at the importer waypoint.
         cargo = ShipCargoItem.objects.get(ship=self, type=CargoType.objects.get(symbol=trade_good_symbol))
         # TODO: determine the maximum we can sell in one transaction.
@@ -800,15 +819,78 @@ class Ship(models.Model):
         else:
             return False
 
-    @property
-    @display(description="mounts")
-    def mounts_display(self):
-        return ', '.join([str(mount) for mount in self.mounts.all()])
+    def get_cooldown(self):
+        """Returns ship cooldown as a datetime, or None."""
+        if "expiration" in self.cooldown:
+            return datetime.fromisoformat(self.cooldown["expiration"])
+        return None
 
     @property
-    @display(description="modules")
-    def modules_display(self):
-        return ', '.join([str(module) for module in self.modules.all()])
+    def cooldown_display(self):
+        """Returns a human-readable string for the cooldown time of the ship."""
+        cooldown = self.get_cooldown()
+        if cooldown:
+            now = datetime.now(timezone.utc)
+            if cooldown < now:
+                return f"in the past ({cooldown.astimezone(TZ).strftime('%d-%b-%Y %H:%M:%S')})"
+            return f"{naturaldelta(cooldown - now)} ({cooldown.astimezone(TZ).strftime('%d-%b-%Y %H:%M:%S')})"
+        else:
+            return ""
+
+    @property
+    def is_in_cooldown(self):
+        cooldown = self.get_cooldown()
+        now = datetime.now(timezone.utc)
+        if cooldown and cooldown >= now:
+            return True
+        else:
+            return False
+
+    def siphon(self, client):
+        """Extract gas resources from a waypoint."""
+        if not self.is_in_orbit:
+            self.orbit(client)
+        if self.is_in_cooldown:
+            msg = f"{self} is currently in cooldown for {self.cooldown_display}"
+            LOGGER.info(msg)
+            return msg
+
+        data = client.siphon_resources(self.symbol)
+        if "error" in data:
+            LOGGER.error(data["error"]["message"])
+            return False
+
+        self.cooldown = data["cooldown"]
+        self.save()
+        self.update_cargo(data["cargo"])
+        siphon_yield = data["siphon"]["yield"]
+        msg = f"{self} siphon yielded {siphon_yield['units']} {siphon_yield['symbol']}"
+        LOGGER.info(msg)
+        return msg
+
+    def extract(self, client, survey=None):
+        """Extract resources from a waypoint.
+        TODO: make use of an optional survey object.
+        """
+        if not self.is_in_orbit:
+            self.orbit(client)
+        if self.is_in_cooldown:
+            msg = f"{self} is currently in cooldown for {self.cooldown_display}"
+            LOGGER.info(msg)
+            return msg
+
+        data = client.extract_resources(self.symbol)
+        if "error" in data:
+            LOGGER.error(data["error"]["message"])
+            return False
+
+        self.cooldown = data["cooldown"]
+        self.save()
+        self.update_cargo(data["cargo"])
+        extract_yield = data["extraction"]["yield"]
+        msg = f"{self} extract yielded {extract_yield['units']} {extract_yield['symbol']}"
+        LOGGER.info(msg)
+        return msg
 
 
 class CargoType(models.Model):
@@ -974,6 +1056,10 @@ class Market(models.Model):
             )
             self.exports.add(trade_good)
 
+        # For any exports, call save() in order to make any new trade matches.
+        for mtg in self.markettradegood_set.filter(type="EXPORT"):
+            mtg.save()
+
         for ex in data["exchange"]:
             trade_good, created = TradeGood.objects.get_or_create(
                 symbol=ex["symbol"],
@@ -1028,7 +1114,7 @@ class Market(models.Model):
     def get_arbitrage(self):
         """Get a list of all arbitrage opportunities for exports from this market. Returns:
         {
-            "<TRADE GGOOD SYMBOL>": [
+            "<TRADE GOOD SYMBOL>": [
                 (<waypoint symbol>, distance, spread, spread/distance),
                 ...
             ],
