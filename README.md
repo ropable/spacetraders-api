@@ -14,6 +14,7 @@ Reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-spa
 ```python
 from spacetraders import Client
 from galaxy.utils import *
+
 client = Client()
 populate_factions(client)  # Populates factions and systems
 set_agent(client)  # Creates player Agent instance
@@ -35,8 +36,9 @@ populate_shipyards(client)
 - [X] Wait on arrival
 - [X] Sell trade good
 
-- [ ] Define a series of tasks, which might have preceding tasks
+- [ ] Define a series of tasks, which might have sub-tasks
 - [ ] Find the "active" task and determine what needs to be done next
+- [ ] Introduce some randomisation into how ships find an export market
 
 ```
 ship = Ship.objects.first()
@@ -67,7 +69,6 @@ ship.sell_cargo(client)
 ship.refuel(client)
 ship.nav.waypoint.refresh(client)
 ```
-
 
 ## Automate mining procurement contract
 
@@ -144,7 +145,16 @@ while len(waypoints_to_visit) > 0:
     ship.refuel(client)
 ```
 
-## Find market trade opportunities
+## Find the nearest export markets to a ship
+
+```python
+system = ship.nav.waypoint.system
+export_markets = Market.objects.filter(exports__isnull=False, waypoint__system=system).distinct()
+export_waypoints = [(e.waypoint, e.waypoint.distance(ship.nav.waypoint.coords), e.exports_display) for e in export_markets]
+export_waypoints = sorted(export_waypoints, key=lambda x: x[1])
+```
+
+## Find market export/import opportunities
 
 ```python
 market_tradegoods = MarketTradeGood.objects.all()
