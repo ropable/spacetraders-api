@@ -148,7 +148,23 @@ class ShipyardShipAdmin(ReadOnlyModelAdmin):
 
 @register(Transaction)
 class TransactionAdmin(ReadOnlyModelAdmin):
+
+    class FuelFilter(SimpleListFilter):
+        title = "fuel"
+        parameter_name = "fuel"
+
+        def lookups(self, request, model_admin):
+            return [(True, "True"), (False, "False")]
+
+        def queryset(self, request, queryset):
+            if self.value():
+                fuel = TradeGood.objects.get(symbol="FUEL")
+                if self.value() == "True":
+                    return queryset.filter(trade_good=fuel)
+                else:
+                    return queryset.exclude(trade_good=fuel)
+
     date_hierarchy = "timestamp"
     list_display = ("market", "ship_symbol", "trade_good", "type", "units", "total_price", "timestamp")
-    list_filter = ("type", "ship_symbol")
+    list_filter = (FuelFilter, "type", "ship_symbol")
     fields = [field.name for field in Transaction._meta.concrete_fields]
