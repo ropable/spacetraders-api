@@ -254,6 +254,13 @@ class Client(Session):
         resp.raise_for_status()
         return resp.json()["data"]
 
+    def siphon_resources(self, symbol: str):
+        """Siphon gas resources from a waypoint.
+        """
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/siphon")
+        resp.raise_for_status()
+        return resp.json()["data"]
+
     def extract_resources_with_survey(self, symbol: str, survey: dict):
         """Extract resources from a waypoint into a ship.
         """
@@ -349,6 +356,15 @@ class Client(Session):
             return resp.json()["data"]
         except:
             # If the transaction fails, return the error payload.
+            return resp.json()
+
+    def negotiate_contract(self, symbol: str):
+        """Negotiate a new contract with HQ."""
+        resp = self.post(f"{settings.API_URL}/my/ships/{symbol}/negotiate/contract")
+        try:
+            resp.raise_for_status()
+            return resp.json()["data"]
+        except:
             return resp.json()
 
     # ----------------------------------------------------------------
