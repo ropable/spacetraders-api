@@ -812,41 +812,29 @@ class Ship(models.Model):
         LOGGER.info(msg)
         return msg
 
-    def extract_until_full(self, client):
+    def extract_until_full(self, client, target_resource: str = None):
         """If the ship's cargo capacity is not full, queue an extract action for after the
         cooldown or immediately (whichever is soonest).
         """
         if self.cargo_units < self.cargo_capacity:
             self.extract(client)
 
+        # Optional step: jettison any cargo that isn't the target_resource
+        if target_resource:
+            cargo_type = CargoType.objects.get(symbol=target_resource)
+            for cargo in self.cargo.all().exclude(type=cargo_type):
+                cargo.jettison(client)
+
         # Queue the next extraction, if required.
         if self.cargo_units < self.cargo_capacity:
             msg = f"{self} queued extract in {self.cooldown_display()}"
             LOGGER.info(msg)
             queue = get_queue("default")
-            queue.enqueue_at(self.get_cooldown(), self.extract_until_full, client)
+            queue.enqueue_at(self.get_cooldown(), self.extract_until_full, client, target_resource)
             return msg
 
         # Ship is full, cease queuing actions.
         msg = f"{self} cargo is full, ceasing extraction"
-        LOGGER.info(msg)
-        return msg
-
-    def jettison(self, client, symbol: str, units: int = None):
-        """Jettison the given type of cargo from this ship. If `units` is not specified,
-        jettison the full amount.
-        """
-        cargo_type = CargoType.objects.get(symbol=symbol)
-        if not ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
-            return
-
-        ship_cargo = ShipCargoItem.objects.get(type=cargo_type, ship=self)
-        if not units:
-            units = ship_cargo.units
-
-        data = client.jettison_cargo(self.symbol, symbol, units)
-        self.update_cargo(data["cargo"])
-        msg = f"{self} jettisoned {units} units of {cargo_type}"
         LOGGER.info(msg)
         return msg
 
@@ -925,6 +913,18 @@ class ShipCargoItem(models.Model):
         )
 
         msg = f"Sold {transaction.units} units of {trade_good} for {transaction.total_price}"
+        LOGGER.info(msg)
+        return msg
+
+    def jettison(self, client, units: int = None):
+        """Jettison this cargo. If `units` is not specified, jettison the full amount.
+        """
+        if not units:
+            units = self.units
+
+        data = client.jettison_cargo(self.ship.symbol, self.type.symbol, units)
+        self.ship.update_cargo(data["cargo"])
+        msg = f"{self.ship} jettisoned {units} units of {self.type}"
         LOGGER.info(msg)
         return msg
 
