@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from django.conf import settings
 from django.contrib.admin import display
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django_rq.queues import get_queue
 from humanize import naturaldelta
 import logging
 from math import dist
@@ -198,12 +199,6 @@ class Waypoint(models.Model):
     def coords(self):
         return (self.x, self.y)
 
-    def has_trait(self, trait):
-        if WaypointTrait.objects.filter(symbol=trait).exists() and WaypointTrait.objects.get(symbol=trait) in self.traits.all():
-            return True
-        else:
-            return False
-
     @property
     def is_market(self):
         return self.has_trait("MARKETPLACE")
@@ -211,6 +206,12 @@ class Waypoint(models.Model):
     @property
     def is_shipyard(self):
         return self.has_trait("SHIPYARD")
+
+    def has_trait(self, trait):
+        if WaypointTrait.objects.filter(symbol=trait).exists() and WaypointTrait.objects.get(symbol=trait) in self.traits.all():
+            return True
+        else:
+            return False
 
     def distance(self, coords):
         if not isinstance(coords, tuple):
@@ -224,8 +225,8 @@ class Waypoint(models.Model):
             return ""
 
     def get_export_markets(self):
-        """For a given market waypoint, return a list of other exporter waypoints in the same system
-        sorted by distance.
+        """For a given market waypoint, return a list of other exporter waypoints in the same system sorted by distance.
+        Returns [(<Waypoint>, <distance>), ...]
         """
         export_markets = Market.objects.filter(exports__isnull=False, waypoint__system=self.system).distinct()
         export_waypoints = [(e.waypoint, e.waypoint.distance(self.coords), e.exports_display) for e in export_markets]
@@ -324,17 +325,6 @@ class ShipNav(models.Model):
     def flight_mode_display(self):
         return self.flight_mode.replace("_", " ").capitalize()
 
-    def get_export_markets(self):
-        """Returns the list of market waypoints having exports, sorted nearest > furtherest from this ship.
-        Returns [(<waypoint symbol>, <distance>), ...]
-        """
-        market_waypoints = []
-        waypoints = Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol='MARKETPLACE'))
-        for waypoint in waypoints:
-            if waypoint.market.exports.exists():
-                market_waypoints.append((waypoint.symbol, waypoint.distance(self.waypoint.coords)))
-        return sorted(market_waypoints, key=lambda x: x[1])
-
 
 class ShipModule(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -398,6 +388,15 @@ class Ship(models.Model):
         return self.nav.status == "IN_ORBIT"
 
     @property
+    def is_in_cooldown(self):
+        cooldown = self.get_cooldown()
+        now = datetime.now(timezone.utc)
+        if cooldown and cooldown >= now:
+            return True
+        else:
+            return False
+
+    @property
     def role(self):
         return self.registration["role"].capitalize()
 
@@ -445,8 +444,16 @@ class Ship(models.Model):
         return msg
 
     def navigate(self, client, waypoint_symbol: str):
+        """Navigate this ship to the nominated waypoint.
+        """
         if not self.is_in_orbit:
             self.orbit(client)
+
+        # Determine if the destination waypoint is in range using the preset flight mode.
+        # If not, set it to DRIFT mode.
+        destination = Waypoint.objects.get(symbol=waypoint_symbol)
+        if self.nav.get_fuel_cost(destination.coords) >= self.fuel["current"]:
+            self.flight_mode(client, "DRIFT")
 
         data = client.navigate_ship(self.symbol, waypoint_symbol)
         if "error" in data:
@@ -460,9 +467,10 @@ class Ship(models.Model):
         # Update ship.nav
         self.nav.update(data["nav"])
 
-        # Schedule a refresh of this ship's data on arrival.
-        client.queue.enqueue_at(self.nav.get_arrival(), self.refresh, client)
-
+        # Queue a refresh of this ship's data on arrival.
+        queue = get_queue("default")
+        queue.enqueue_at(self.nav.get_arrival(), self.refresh, client)
+        LOGGER.info(f"{self} queued data refresh in {self.nav.arrival_display()}")
         msg = f"{self} en route to {self.nav.route['destination']['symbol']} ({self.nav.flight_mode}), arrival in {self.nav.arrival_display()}"
         LOGGER.info(msg)
         return msg
@@ -638,6 +646,8 @@ class Ship(models.Model):
             total_price=data["transaction"]["totalPrice"],
             timestamp=data["transaction"]["timestamp"],
         )
+        # Update the local market conditions.
+        self.nav.waypoint.refresh(client)
 
         msg = f"{self} purchased {transaction.units} units of {trade_good} for {transaction.total_price}"
         LOGGER.info(msg)
@@ -672,11 +682,12 @@ class Ship(models.Model):
             self.refresh(client)
 
         transactions = []
-
         for cargo in self.cargo.all():
             LOGGER.info(f"Selling {cargo}")
             transactions.append(cargo.sell(client))
 
+        # Update the local market conditions.
+        self.nav.waypoint.refresh(client)
         return transactions
 
     def refresh(self, client):
@@ -716,108 +727,16 @@ class Ship(models.Model):
         destinations = sorted(destinations, key=lambda x: x[0])
         return destinations
 
-    def sleep_until_arrival(self, client):
+    def sleep_until_arrival(self):
         """Sleep (blocking) until the scheduled arrival time for this ship.
         """
         now = datetime.now(timezone.utc)
-        arrival = datetime.fromisoformat(self.nav.route['arrival'])
+        arrival = datetime.fromisoformat(self.nav.route["arrival"])
         if arrival < now:
             return
         pause = (arrival - now).seconds + 1
-        msg = f"Sleeping {self.nav.arrival_display()}"
-        LOGGER.info(msg)
-        print(msg)
+        print(f"Sleeping until {self.nav.arrival_display()}")
         sleep(pause)
-
-    def trade_workflow(self, client, export_waypoint: str, import_waypoint: str, trade_good_symbol: str, units: int = None):
-        """Carry out an automated trade workflow for this ship.
-        TODO: make this function non-blocking, in a separate thread.
-        """
-        # If necessary, navigate to the exporter waypoint.
-        destination = Waypoint.objects.get(symbol=export_waypoint)
-
-        # Default to cruise mode. If the fuel cost exceeds fuel availability, revert to drift mode.
-        self.flight_mode(client, "CRUISE")
-        if self.nav.get_fuel_cost(destination.coords) >= self.fuel["current"]:
-            self.flight_mode(client, "DRIFT")
-
-        print(f"{self} navigating to {destination} ({self.nav.flight_mode})")
-        self.navigate(client, destination.symbol)
-        self.sleep_until_arrival(client)
-        # Dock at the destination
-        self.dock(client)
-
-        # Update the local market conditions.
-        self.nav.waypoint.refresh(client)
-        market = self.nav.waypoint.market
-        trade_good = TradeGood.objects.get(symbol=trade_good_symbol)
-        market_trade_good = MarketTradeGood.objects.get(market=market, trade_good=trade_good)
-        if market_trade_good.type != "EXPORT":
-            print(f"{trade_good} is not exported at {market}")
-            return False
-
-        print("Purchase goods step")
-        # Purchase a given amount of the trade good.
-        # First, check the trade_volume of the good.
-        # If the trade_volume is less than `units`, we need to iterate
-        # the purchase until the desired quantity of units is reached.
-        if not units:  # Default to ship available cargo capacity.
-            units = self.cargo_capacity - self.cargo_units
-
-        if units > market_trade_good.trade_volume:
-            # iterate
-            remaining = units  # Running total of purchased good.
-            while remaining > 0:
-                # Determine how much to purchase.
-                if remaining > market_trade_good.trade_volume:
-                    print(f"Purchasing remaining {remaining} units")
-                    outcome = self.purchase_cargo(client, trade_good_symbol, remaining)
-                    if outcome:
-                        remaining -= remaining
-                        print(outcome)
-                    else:
-                        return False
-                else:
-                    print(f"Purchasing {market_trade_good.trade_volume} units")
-                    outcome = self.purchase_cargo(client, trade_good_symbol, market_trade_good.trade_volume)
-                    if outcome:
-                        remaining -= market_trade_good.trade_volume
-                        print(outcome)
-                    else:
-                        return False
-        else:
-            # Single purchase
-            outcome = self.purchase_cargo(client, trade_good_symbol, units)
-            if outcome:
-                print(outcome)
-            else:
-                return False
-
-        # Update the local market conditions.
-        self.nav.waypoint.refresh(client)
-
-        # Navigate to the importer waypoint.
-        # Default to cruise mode. If the fuel cost exceeds fuel availability, revert to drift mode.
-        destination = Waypoint.objects.get(symbol=import_waypoint)
-        self.flight_mode(client, "CRUISE")
-        if self.nav.get_fuel_cost(destination.coords) >= self.fuel["current"]:
-            self.flight_mode(client, "DRIFT")
-
-        print(f"{self} navigating to {destination} ({self.nav.flight_mode})")
-        self.navigate(client, destination.symbol)
-        self.sleep_until_arrival(client)
-        # Dock at the destination
-        self.dock(client)
-
-        # Sell the cargo at the importer waypoint.
-        cargo = ShipCargoItem.objects.get(ship=self, type=CargoType.objects.get(symbol=trade_good_symbol))
-        # TODO: determine the maximum we can sell in one transaction.
-        sale = cargo.sell(client)
-        if sale:
-            print(sale)
-            return True
-        else:
-            return False
 
     def get_cooldown(self):
         """Returns ship cooldown as a datetime, or None."""
@@ -825,7 +744,6 @@ class Ship(models.Model):
             return datetime.fromisoformat(self.cooldown["expiration"])
         return None
 
-    @property
     def cooldown_display(self):
         """Returns a human-readable string for the cooldown time of the ship."""
         cooldown = self.get_cooldown()
@@ -837,21 +755,23 @@ class Ship(models.Model):
         else:
             return ""
 
-    @property
-    def is_in_cooldown(self):
-        cooldown = self.get_cooldown()
+    def sleep_until_cooldown(self):
+        """Sleep (blocking) until the cooldown period ends for this ship.
+        """
         now = datetime.now(timezone.utc)
-        if cooldown and cooldown >= now:
-            return True
-        else:
-            return False
+        cooldown = datetime.fromisoformat(self.cooldown["expiration"])
+        if cooldown < now:
+            return
+        pause = (cooldown - now).seconds
+        print(f"Sleeping for {self.nav.cooldown_display()}")
+        sleep(pause)
 
     def siphon(self, client):
         """Extract gas resources from a waypoint."""
         if not self.is_in_orbit:
             self.orbit(client)
         if self.is_in_cooldown:
-            msg = f"{self} is currently in cooldown for {self.cooldown_display}"
+            msg = f"{self} is currently in cooldown for {self.cooldown_display()}"
             LOGGER.info(msg)
             return msg
 
@@ -875,7 +795,7 @@ class Ship(models.Model):
         if not self.is_in_orbit:
             self.orbit(client)
         if self.is_in_cooldown:
-            msg = f"{self} is currently in cooldown for {self.cooldown_display}"
+            msg = f"{self} is currently in cooldown for {self.cooldown_display()}"
             LOGGER.info(msg)
             return msg
 
@@ -891,6 +811,63 @@ class Ship(models.Model):
         msg = f"{self} extract yielded {extract_yield['units']} {extract_yield['symbol']}"
         LOGGER.info(msg)
         return msg
+
+    def extract_until_full(self, client):
+        """If the ship's cargo capacity is not full, queue an extract action for after the
+        cooldown or immediately (whichever is soonest).
+        """
+        if self.cargo_units < self.cargo_capacity:
+            self.extract(client)
+
+        # Queue the next extraction, if required.
+        if self.cargo_units < self.cargo_capacity:
+            msg = f"{self} queued extract in {self.cooldown_display()}"
+            LOGGER.info(msg)
+            queue = get_queue("default")
+            queue.enqueue_at(self.get_cooldown(), self.extract_until_full, client)
+            return msg
+
+        # Ship is full, cease queuing actions.
+        msg = f"{self} cargo is full, ceasing extraction"
+        LOGGER.info(msg)
+        return msg
+
+    def jettison(self, client, symbol: str, units: int = None):
+        """Jettison the given type of cargo from this ship. If `units` is not specified,
+        jettison the full amount.
+        """
+        cargo_type = CargoType.objects.get(symbol=symbol)
+        if not ShipCargoItem.objects.filter(type=cargo_type, ship=self).exists():
+            return
+
+        ship_cargo = ShipCargoItem.objects.get(type=cargo_type, ship=self)
+        if not units:
+            units = ship_cargo.units
+
+        data = client.jettison_cargo(self.symbol, symbol, units)
+        self.update_cargo(data["cargo"])
+        msg = f"{self} jettisoned {units} units of {cargo_type}"
+        LOGGER.info(msg)
+        return msg
+
+    def get_export_markets(self):
+        """Returns the list of market waypoints having exports, sorted nearest > furtherest from this ship.
+        """
+        return self.nav.waypoint.get_export_markets()
+
+    def trade_workflow(self, client, trade_good: str, destination_symbol: str, units: int = None):
+        """Carry out an automated trade workflow for this ship.
+        Purchase the passed-in trade good, navigate to the destination waypoint, and sell the cargo.
+        """
+        self.purchase_cargo(client, trade_good, units)
+        self.navigate(client, destination_symbol)
+        # Steps below are queued for after arrival.
+        queue = get_queue("default")
+        arrival = self.nav.get_arrival()
+        # Sell the cargo
+        queue.enqueue_at(arrival, self.sell_cargo, client)
+        # Refuel the ship
+        queue.enqueue_at(arrival + timedelta(seconds=5), self.refuel, client)
 
 
 class CargoType(models.Model):
@@ -1131,7 +1108,7 @@ class Market(models.Model):
     def get_best_export(self):
         """Given the list of export arbitrage opportunities for this market,
         return the trade with the "best" ratio of spread / distance.
-        Returns (<spread>, <trade good symbol>, <waypoint symbol>) or None.
+        Returns (<destination waypoint symbol>, <trade good symbol>, <ratio>) or None.
         """
         if not self.exports.exists():
             return None
@@ -1140,7 +1117,7 @@ class Market(models.Model):
         best_trade = (0, None, None)
         for symbol, options in market_arbitrage.items():
             if options and options[0][3] > best_trade[0]:
-                best_trade = (options[0][3], symbol, options[0][0])
+                best_trade = (symbol, options[0][0], options[0][3])
 
         if best_trade[-1]:  # Trade has a destination waypoint.
             return best_trade

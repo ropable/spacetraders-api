@@ -24,6 +24,12 @@ populate_markets(client)
 populate_shipyards(client)
 ```
 
+# Queue worker & scheduler
+
+```
+poetry run python manage.py rqworker --with-scheduler
+```
+
 # TODOs
 
 ## Autonomous trading behaviour
