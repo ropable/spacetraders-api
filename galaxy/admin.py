@@ -76,7 +76,7 @@ class WaypointTraitAdmin(ReadOnlyModelAdmin):
 
 @register(Ship)
 class ShipAdmin(ReadOnlyModelAdmin):
-    list_display = ("symbol", "frame_name", "role", "nav", "modified")
+    list_display = ("symbol", "frame_name", "role", "nav", "behaviour", "modified")
     fields = [field.name for field in Ship._meta.concrete_fields] + ["mounts_display", "modules_display"]
 
 
@@ -127,8 +127,7 @@ class MarketAdmin(ReadOnlyModelAdmin):
 
 @register(MarketTradeGood)
 class MarketTradeGoodAdmin(ReadOnlyModelAdmin):
-
-    list_display = ("waypoint_display", "trade_good", "symbol", "type", "supply", "activity", "purchase_price", "sell_price", "trade_volume")
+    list_display = ("market", "trade_good", "symbol", "type", "supply", "activity", "purchase_price", "sell_price", "trade_volume")
     list_filter = ("type", "supply", "activity", "market")
     fields = [field.name for field in MarketTradeGood._meta.concrete_fields]
     search_fields = ("market__waypoint__symbol", "trade_good__name")

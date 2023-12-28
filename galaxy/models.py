@@ -7,6 +7,7 @@ from django_rq.queues import get_queue
 from humanize import naturaldelta
 import logging
 from math import dist
+import random
 from time import sleep
 from zoneinfo import ZoneInfo
 
@@ -176,7 +177,7 @@ class Waypoint(models.Model):
             self.shipyard.update(data)
         # TODO: jump gate
 
-        msg = f"{self} data refreshed from server"
+        msg = f"{self} data updated"
         LOGGER.info(msg)
         return msg
 
@@ -262,7 +263,7 @@ class ShipNav(models.Model):
         self.status = data["status"]
         self.flight_mode = data["flightMode"]
         self.save()
-        LOGGER.info(f"{self.ship} nav updated")
+        #LOGGER.info(f"{self.ship} nav updated")
 
     def get_arrival(self):
         """Returns route.arrival as a datetime."""
@@ -367,6 +368,21 @@ class Ship(models.Model):
     cargo_units = models.PositiveIntegerField(default=0)
     fuel = models.JSONField(default=dict)
 
+    # Non-API (local) fields.
+    BEHAVIOUR_CHOICES = (
+        (None, "None"),
+        ("TRADE", "Trading"),
+        ("MINE", "Mining"),
+        ("HAUL", "Hauling"),
+    )
+    behaviour = models.CharField(
+        max_length=32,
+        choices=BEHAVIOUR_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Desired autonomous behaviour",
+    )
+
     class Meta:
         ordering = ("symbol",)
         unique_together = ("agent", "symbol")
@@ -470,7 +486,6 @@ class Ship(models.Model):
         # Queue a refresh of this ship's data on arrival.
         queue = get_queue("default")
         queue.enqueue_at(self.nav.get_arrival(), self.refresh, client)
-        LOGGER.info(f"{self} queued data refresh in {self.nav.arrival_display()}")
         msg = f"{self} en route to {self.nav.route['destination']['symbol']} ({self.nav.flight_mode}), arrival in {self.nav.arrival_display()}"
         LOGGER.info(msg)
         return msg
@@ -564,7 +579,7 @@ class Ship(models.Model):
                 mount = ShipMount.objects.get(symbol=mount_data["symbol"])
             self.mounts.add(mount)
 
-        LOGGER.info(f"{self} updated")
+        #LOGGER.info(f"{self} updated")
 
     def update_cargo(self, data):
         """Update ship cargo from passed-in data.
@@ -606,7 +621,7 @@ class Ship(models.Model):
                 current_cargo = CargoType.objects.filter(symbol__in=[good["symbol"] for good in data["inventory"]])
                 ShipCargoItem.objects.filter(ship=self).exclude(type__in=current_cargo).delete()
 
-        LOGGER.info(f"{self} cargo updated")
+        #LOGGER.info(f"{self} cargo updated")
 
     def purchase_cargo(self, client, trade_good: str, units: int = None):
         if not self.is_docked:
@@ -684,7 +699,12 @@ class Ship(models.Model):
         transactions = []
         for cargo in self.cargo.all():
             LOGGER.info(f"Selling {cargo}")
-            transactions.append(cargo.sell(client))
+            result = cargo.sell(client)
+            if not result:
+                LOGGER.warning(f"Error during sell for {cargo}")
+                return False
+            else:
+                transactions.append(result)
 
         # Update the local market conditions.
         self.nav.waypoint.refresh(client)
@@ -695,7 +715,7 @@ class Ship(models.Model):
         self.update(data)
         self.update_cargo(data["cargo"])
 
-        msg = f"{self} data refreshed from server"
+        msg = f"{self} data updated"
         LOGGER.info(msg)
         return msg
 
@@ -857,6 +877,68 @@ class Ship(models.Model):
         # Refuel the ship
         queue.enqueue_at(arrival + timedelta(seconds=5), self.refuel, client)
 
+    def behaviour_trade(self, client):
+        """Carry out 'trade randomly, forever' behaviour.
+        Options:
+            - Sell cargo at the current location.
+            - Navigate elsewhere to an export market.
+            - Purchase cargo and navigate to the destination import market.
+        """
+        if not self.behaviour == "TRADE":
+            return  # Abort
+        else:
+            LOGGER.info(f"{self} behaviour is TRADE")
+
+        # Refresh ship data.
+        self.refresh(client)
+        # Reset flight mode to CRUISE.
+        self.flight_mode(client, "CRUISE")
+        # Dock & refuel the ship.
+        self.dock(client)
+        result = self.refuel(client)
+        if not result:
+            LOGGER.warning("Error during refuel, aborting")
+            return
+
+        queue = get_queue("default")
+
+        if self.cargo.exists():
+            LOGGER.info(f"{self} selling cargo at the current market")
+            # Sell the cargo
+            result = self.sell_cargo(client)
+            if not result:
+                LOGGER.warning("Error during sell_cargo, aborting")
+                return
+            # Queue up next trade attempt.
+            queue.enqueue(self.behaviour_trade, client)
+        elif not self.nav.waypoint.market.get_best_export():
+            # Navigate to a random export market.
+            export_market_choices = self.get_export_markets()
+            destination = random.choice(export_market_choices[0:10])[0]
+            LOGGER.info(f"{self} navigating elsewhere to export market ({destination.symbol})")
+            result = self.navigate(client, destination.symbol)
+            if not result:
+                LOGGER.warning("Error during navigate, aborting")
+                return
+            # Steps below are queued for after arrival.
+            arrival = self.nav.get_arrival()
+            queue.enqueue_at(arrival + timedelta(seconds=10), self.behaviour_trade, client)
+        else:
+            # Execute a trade from the current location.
+            trade_good_symbol, waypoint_symbol, ratio = self.nav.waypoint.market.get_best_export()
+            LOGGER.info(f"{self} purchasing {trade_good_symbol} to sell at {waypoint_symbol}")
+            result = self.purchase_cargo(client, trade_good_symbol)
+            if not result:
+                LOGGER.warning("Error during purchase_cargo, aborting")
+                return
+            result = self.navigate(client, waypoint_symbol)
+            if not result:
+                LOGGER.warning("Error during navigate, aborting")
+                return
+            # Queue up next trade attempt.
+            arrival = self.nav.get_arrival()
+            queue.enqueue_at(arrival + timedelta(seconds=10), self.behaviour_trade, client)
+
 
 class CargoType(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -957,7 +1039,7 @@ class Contract(models.Model):
     def update(self, data):
         self.accepted = data["accepted"]
         self.fulfilled = data["fulfilled"]
-        LOGGER.info(f"{self} updated")
+        #LOGGER.info(f"{self} updated")
         self.save()
 
     @property
@@ -1114,9 +1196,9 @@ class Market(models.Model):
             return None
 
         market_arbitrage = self.get_arbitrage()
-        best_trade = (0, None, None)
+        best_trade = (None, None, 0)
         for symbol, options in market_arbitrage.items():
-            if options and options[0][3] > best_trade[0]:
+            if options and options[0][3] > best_trade[2]:
                 best_trade = (symbol, options[0][0], options[0][3])
 
         if best_trade[-1]:  # Trade has a destination waypoint.
