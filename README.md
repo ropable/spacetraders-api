@@ -30,6 +30,14 @@ populate_shipyards(client)
 poetry run python manage.py rqworker --with-scheduler
 ```
 
+# Frontend
+
+Stylesheets:
+
+- https://codepen.io/dragontheory/pen/wvRRYqQ
+- https://gist.github.com/CodeMyUI/1d83fbd4904edd7021c06f8dfd0f14c9
+- https://terminalcss.xyz/dark/
+
 # TODOs
 
 ## Autonomous trading behaviour
