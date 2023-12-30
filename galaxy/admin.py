@@ -62,7 +62,7 @@ class WaypointAdmin(ReadOnlyModelAdmin):
                 trait = WaypointTrait.objects.get(symbol=self.value())
                 return queryset.filter(traits__in=[trait])
 
-    list_display = ("symbol", "type_display", "system", "coords", "orbits", "faction", "modified")
+    list_display = ("symbol", "type", "system", "coords", "orbits", "faction", "modified")
     list_filter = ("type", "system", "faction", WaypointTraitFilter)
     search_fields = ("symbol",)
     fields = [field.name for field in Waypoint._meta.concrete_fields] + ["orbitals_display"]

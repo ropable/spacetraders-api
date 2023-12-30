@@ -12,7 +12,11 @@ class SystemView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         system = self.get_object()
+        context["system_symbol"] = system.symbol
         waypoints = Waypoint.objects.filter(system=system)
+        star = waypoints.filter(type="GAS_GIANT").first()
+        context["centrex"] = star.x
+        context["centrey"] = star.y
         context["waypoints"] = [
             {
                 "symbol": wp.symbol,
@@ -22,10 +26,10 @@ class SystemView(DetailView):
             }
             for wp in waypoints
         ]
-        context["minx"] = min([wp.x for wp in waypoints])
-        context["miny"] = max([wp.y for wp in waypoints])
-        context["width"] = max([wp.x for wp in waypoints]) + context["minx"]
-        context["height"] = context["miny"] + min([wp.y for wp in waypoints])
+        context["minx"] = min([wp.x for wp in waypoints]) - 5
+        context["miny"] = min([wp.y for wp in waypoints]) - 5
+        context["width"] = max([wp.x for wp in waypoints]) + abs(context["minx"]) + 5
+        context["height"] = max([wp.y for wp in waypoints]) + abs(context["miny"]) + 5
         return context
 
 

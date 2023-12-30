@@ -1,20 +1,25 @@
-<html>
-    <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    </head>
-    <body>
-        <div id="systemPanel" style="height:100%">
-            <svg id="systemView" style="border:3px solid green; background-color:#333; width:100%; height:100%; border-radius: 17px;" viewBox="{{minx}} {{miny}} {{width}} {{height}}">
-            {% for w in waypoints %}
-                {% if w.type == "PLANET" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="blue" id="{{w.symbol}}"></circle>
-                {% elif w.type == "ASTEROID" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="orange" id="{{w.symbol}}"></circle>
-                {% else %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="{{w.symbol}}"></circle>
-                {% endif %}
-            {% endfor %}
-            </svg>
-        </div>
-    </body>
-</html>
+{% extends "base.html" %}
+
+{% block page_content %}
+<div id="system_{{ system_symbol }}">
+    <svg style="border:3px solid green; background-color:#333; width:100%; height:100%; border-radius: 10px;" viewBox="{{minx}} {{miny}} {{width}} {{height}}">
+    {% for w in waypoints %}
+        {% if w.type == "GAS_GIANT" %}
+        <circle cx="{{w.x}}" cy="{{w.y}}" r="15" fill="yellow" id="waypoint_{{w.symbol}}"></circle>
+        {% elif w.type == "PLANET" %}
+        <circle cx="{{w.x}}" cy="{{w.y}}" r="10" fill="blue" id="waypoint_{{w.symbol}}"></circle>
+        {% elif w.type == "ENGINEERED_ASTEROID" %}
+        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
+        {% elif w.type == "ASTEROID" %}
+        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
+        {% elif w.type == "ASTEROID_BASE" %}
+        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="orange" id="waypoint_{{w.symbol}}"></circle>
+        {% elif w.type == "FUEL_STATION" %}
+        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="grey" id="waypoint_{{w.symbol}}"></circle>
+        {% elif w.type == "JUMP_GATE" %}
+        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="white" id="waypoint_{{w.symbol}}"></circle>
+        {% endif %}
+    {% endfor %}
+    </svg>
+</div>
+{% endblock %}

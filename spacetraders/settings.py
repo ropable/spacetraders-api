@@ -24,6 +24,7 @@ WSGI_APPLICATION = "spacetraders.wsgi.application"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 API_URL = API_URL_V2 = "https://api.spacetraders.io/v2"
 API_TOKEN = os.environ.get("API_TOKEN", "PlaceholderToken")
+STATIC_CONTEXT_VARS = {}
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -51,14 +52,18 @@ MIDDLEWARE = [
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            os.path.join(PROJECT_DIR, "templates"),
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
+            "debug": DEBUG,
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "spacetraders.context_processors.template_context",
             ],
         },
     },
@@ -69,7 +74,6 @@ TEMPLATES = [
 DATABASES = {
     # Defined in the DATABASE_URL env variable.
     "default": dj_database_url.config(
-        default="sqlite:///spacetraders.sqlite3",
         conn_max_age=600,
         conn_health_checks=True,
     ),
@@ -104,7 +108,7 @@ PASSWORD_HASHERS = [
 
 
 # Internationalization
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = os.environ.get("LANGUAGE_CODE", "en-us")
 TIME_ZONE = os.environ.get("TZ", "UTC")
 USE_TZ = True
 USE_I18N = True
