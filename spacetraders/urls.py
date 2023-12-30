@@ -8,7 +8,7 @@ admin.site.index_title = "SpaceTraders database"
 admin.site.site_title = "SpaceTraders"
 
 urlpatterns = [
-    path("", include("galaxy.urls")),
+    path("galaxy/", include("galaxy.urls")),
     path("django-rq/", include("django_rq.urls")),
     path("admin/", admin.site.urls),
     path("favicon.ico", RedirectView.as_view(url="{}favicon.png".format(settings.STATIC_URL)), name="favicon"),

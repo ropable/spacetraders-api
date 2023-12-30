@@ -1,8 +1,32 @@
 from django.http import HttpResponse
-from django.views.generic import DetailView
+from django.views.generic import DetailView, TemplateView
 import matplotlib.pyplot as plt
 
 from .models import System, Waypoint
+
+
+class SystemView(DetailView):
+    model = System
+    template_name = "galaxy/system_detail.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        system = self.get_object()
+        waypoints = Waypoint.objects.filter(system=system)
+        context["waypoints"] = [
+            {
+                "symbol": wp.symbol,
+                "type": wp.type,
+                "x": wp.x,
+                "y": wp.y,
+            }
+            for wp in waypoints
+        ]
+        context["minx"] = min([wp.x for wp in waypoints])
+        context["miny"] = max([wp.y for wp in waypoints])
+        context["width"] = max([wp.x for wp in waypoints]) + context["minx"]
+        context["height"] = context["miny"] + min([wp.y for wp in waypoints])
+        return context
 
 
 class SystemImageView(DetailView):
