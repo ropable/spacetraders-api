@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.admin import display
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.urls import reverse
 from django_rq.queues import get_queue
 from humanize import naturaldelta
 import logging
@@ -55,6 +56,9 @@ class Agent(models.Model):
     def __str__(self):
         return f"{self.symbol} ({self.starting_faction})"
 
+    def get_absolute_url(self):
+        return reverse("agent_detail", kwargs={"pk": self.pk})
+
     def update(self, data):
         """Update object from passed-in data."""
         self.credits = data["credits"]
@@ -81,6 +85,9 @@ class System(models.Model):
 
     def __str__(self):
         return f"{self.symbol} ({self.get_type_display()})"
+
+    def get_absolute_url(self):
+        return reverse("system_detail", kwargs={"pk": self.pk})
 
     @property
     def coords(self):
@@ -135,6 +142,9 @@ class Waypoint(models.Model):
 
     def __str__(self):
         return f"{self.symbol} ({self.type_display})"
+
+    def get_absolute_url(self):
+        return reverse("waypoint_detail", kwargs={"pk": self.pk})
 
     def update(self, data):
         """Update object from passed-in data."""
@@ -353,7 +363,7 @@ class ShipMount(models.Model):
 
 class Ship(models.Model):
     modified = models.DateTimeField(auto_now=True)
-    agent = models.ForeignKey(Agent, on_delete=models.PROTECT)
+    agent = models.ForeignKey(Agent, related_name="ships", on_delete=models.PROTECT)
     symbol = models.CharField(max_length=32, unique=True)
     registration = models.JSONField(default=dict)
     nav = models.OneToOneField(ShipNav, on_delete=models.CASCADE)
@@ -755,7 +765,7 @@ class Ship(models.Model):
         if arrival < now:
             return
         pause = (arrival - now).seconds + 1
-        print(f"Sleeping until {self.nav.arrival_display()}")
+        print(f"Sleeping {self.nav.arrival_display()}")
         sleep(pause)
 
     def get_cooldown(self):

@@ -1,17 +1,25 @@
-from django.http import HttpResponse
-from django.views.generic import DetailView, TemplateView
-import matplotlib.pyplot as plt
+from django.views.generic import DetailView
 
-from .models import System, Waypoint
+from .models import Agent, System, Waypoint
 
 
-class SystemView(DetailView):
+class AgentDetail(DetailView):
+    model = Agent
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = str(self.get_object())
+        context["agent"] = self.get_object()
+        return context
+
+
+class SystemDetail(DetailView):
     model = System
-    template_name = "galaxy/system_detail.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         system = self.get_object()
+        context["page_title"] = str(system)
         context["system_symbol"] = system.symbol
         waypoints = Waypoint.objects.filter(system=system)
         star = waypoints.filter(type="GAS_GIANT").first()
@@ -33,54 +41,11 @@ class SystemView(DetailView):
         return context
 
 
-class SystemImageView(DetailView):
+class WaypointDetail(DetailView):
+    model = Waypoint
 
-    model = System
-
-    def get(self, request, *args, **kwargs):
-        system = self.get_object()
-        plotted_points = set()
-        plt.figure()
-        plt.title(system)
-
-        # Plot system star
-        for wp in Waypoint.objects.filter(system=system, type="GAS_GIANT"):
-            plt.plot(wp.x, wp.y, color="yellow", marker="*")
-            plt.annotate(
-                text=wp.symbol_suffix,
-                xy=(wp.x + 15, wp.y - 10),
-            )
-            plotted_points.add(wp.coords)
-
-        # Plot jump gates
-        for wp in Waypoint.objects.filter(system=system, type="JUMP_GATE"):
-            plt.plot(wp.x, wp.y, color="blue", marker="h")
-            plt.annotate(
-                text=wp.symbol_suffix,
-                xy=(wp.x + 15, wp.y - 10),
-            )
-            plotted_points.add(wp.coords)
-
-        # Plot planets
-        for wp in Waypoint.objects.filter(system=system, type="PLANET"):
-            plt.plot(wp.x, wp.y, color="green", marker="o")
-            plt.annotate(
-                text=wp.symbol_suffix,
-                xy=(wp.x + 15, wp.y - 10),
-            )
-            plotted_points.add(wp.coords)
-
-        # Plot everything else
-        for wp in Waypoint.objects.filter(system=system).exclude(type__in=["JUMP_GATE", "PLANET"]):
-            if wp.coords not in plotted_points:
-                plt.plot(wp.x, wp.y, color="red", marker="x")
-                #plt.annotate(
-                #    text=wp.symbol_suffix,
-                #    xy=(wp.x + 5, wp.y),
-                #)
-                plotted_points.add(wp.coords)
-
-        response = HttpResponse(content_type="image/png")
-        plt.savefig(response, format="png")
-
-        return response
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = str(self.get_object())
+        context["waypoint"] = self.get_object()
+        return context

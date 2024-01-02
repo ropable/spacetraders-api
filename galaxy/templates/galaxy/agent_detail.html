@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+<div id="agent_detail_view">
+    Agent: {{ agent.symbol }}<br>
+    Credits: {{ agent.credits }}<br>
+    Faction: {{ agent.starting_faction.name }}
+</div>
+<div id="agent_ships_list">
+    <h1>Ships</h1>
+    {% for ship in agent.ships.all %}
+    <div class="border">
+        {{ ship.symbol }}<br>
+        Frame: {{ ship.frame.name }}<br>
+        System: <a href="{% url 'system_detail' pk=ship.pk %}">{{ ship.nav.system.symbol }}</a><br>
+        Status: {{ ship.nav }}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

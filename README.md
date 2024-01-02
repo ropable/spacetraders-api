@@ -24,6 +24,18 @@ populate_markets(client)
 populate_shipyards(client)
 ```
 
+# Register a new agent
+
+Register a new agent and obtain a bearer token (in addition to returning the
+token in the response, this method writes the token value out to a file).
+
+```python
+from spacetraders import Client
+
+client = Client()
+data = client.register_agent("new_agent")
+```
+
 # Queue worker & scheduler
 
 ```
@@ -66,7 +78,7 @@ if not ship.nav.waypoint.market.exports.all():  # No exports at this market.
     else:
         ship.flight_mode(client, "CRUISE")
     ship.navigate(client, destination.symbol)
-    ship.sleep_until_arrival(client)
+    ship.sleep_until_arrival()
     ship.refuel(client)
 
 spread, trade_good_symbol, waypoint_symbol = ship.nav.waypoint.market.get_best_export()
@@ -78,7 +90,7 @@ if ship.nav.get_fuel_cost(destination.coords) >= ship.fuel["current"]:
 else:
     ship.flight_mode(client, "CRUISE")
 ship.navigate(client, waypoint_symbol)
-ship.sleep_until_arrival(client)
+ship.sleep_until_arrival()
 ship.sell_cargo(client)
 ship.refuel(client)
 ship.nav.waypoint.refresh(client)
@@ -146,7 +158,7 @@ while len(waypoints_to_visit) > 0:
             print("Changing to DRIFT mode")
             ship.flight_mode(client, "DRIFT")
         ship.navigate(client, destination.symbol)
-        ship.sleep_until_arrival(client)
+        ship.sleep_until_arrival()
         ship.refresh(client)
     # Refresh waypoint info
     print(f"Refreshing waypoint {ship.nav.waypoint} info")

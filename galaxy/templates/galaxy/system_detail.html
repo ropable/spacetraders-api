@@ -2,7 +2,7 @@
 
 {% block page_content %}
 <div id="system_{{ system_symbol }}">
-    <svg style="border:3px solid green; background-color:#333; width:100%; height:100%; border-radius: 10px;" viewBox="{{minx}} {{miny}} {{width}} {{height}}">
+    <svg style="border:1px solid green; background-color:#333; width:100%; height:100%;" viewBox="{{minx}} {{miny}} {{width}} {{height}}">
     {% for w in waypoints %}
         {% if w.type == "GAS_GIANT" %}
         <circle cx="{{w.x}}" cy="{{w.y}}" r="15" fill="yellow" id="waypoint_{{w.symbol}}"></circle>

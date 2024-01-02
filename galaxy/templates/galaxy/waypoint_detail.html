@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+<div id="waypoint_detail_view">
+    <h1>Waypoint {{ waypoint }}</h1>
+    System: <a href="{% url 'system_detail' pk=waypoint.system.pk %}">{{ waypoint.system.symbol }}</a><br>
+    Faction: {{ waypoint.faction.name }}<br>
+    Traits: {{ waypoint.traits_display|default_if_none:"none" }}<br>
+    {% if waypoint.orbits %}
+    Orbits <a href="{% url 'waypoint_detail' pk=waypoint.orbits.pk %}">{{ waypoint.orbits }}</a>
+    {% endif %}
+    <div class="row">
+        <div class="col-md-4">
+            <svg
+              version="1.1"
+              baseProfile="full"
+              width="300"
+              height="200"
+              xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" fill="black" />
+                <circle cx="150" cy="100" r="90" fill="blue" />
+            </svg>
+        </div>
+        <div class="col-md-8">
+            <div>{{ waypoint.type_display }}</div>
+            {% if waypoint.is_market %}
+            <div>Market: {{ waypoint.market }}</div>
+            {% endif %}
+            {% if waypoint.is_shipyard %}
+            <div>Shipyard: {{ waypoint.shipyard }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% if waypoint.orbitals.exists %}
+    <h4>Orbital bodies:</h4>
+    {% endif %}
+    {% for orbital in waypoint.orbitals.all %}
+    <div class="row">
+        <div class="col-md-4">
+            <svg
+              version="1.1"
+              baseProfile="full"
+              width="300"
+              height="200"
+              xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="10" r="9" fill="blue" />
+            </svg>
+        </div>
+        <div class="col-md-8">
+            <div>{{ orbital.type_display }}</div>
+            {% if orbital.is_market %}
+            <div>Market: {{ orbital.market }}</div>
+            {% endif %}
+            {% if orbital.is_shipyard %}
+            <div>Shipyard: {{ orbital.shipyard }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
