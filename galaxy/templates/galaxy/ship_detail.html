@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+<div id="ship_detail_view">
+    <h1>Ship {{ ship.symbol }} ({{ ship.frame.name }})</h1>
+    Agent: <a href="{{ ship.agent.get_absolute_url }}">{{ ship.agent.symbol }}</a><br>
+    Navigation status:
+    {% if nav.is_in_transit  %}
+    {{ nav.get_status_display }} to {{ nav.waypoint }} ({{ nav.arrival_display }})<br>
+    {% else %}
+    {{ nav.get_status_display }} at <a href="{{ nav.waypoint.get_absolute_url }}">{{ nav.waypoint }}</a><br>
+    {% endif %}
+
+    <div class="row">
+        <div class="border">
+            <h4>Frame</h4>
+            {{ ship.frame.name }}
+        </div>
+    </div>
+</div>
+{% endblock %}

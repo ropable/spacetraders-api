@@ -105,9 +105,6 @@ class System(models.Model):
     def coords(self):
         return (self.x, self.y)
 
-    def get_type_display(self):
-        return self.type.replace("_", " ").capitalize()
-
 
 class WaypointTrait(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -299,6 +296,10 @@ class ShipNav(models.Model):
         else:
             return f"{self.get_status_display()} to {self.waypoint}, {self.get_flight_mode_display()} mode ({self.route['arrival']})"
 
+    @property
+    def is_in_transit(self):
+        return self.status == "IN_TRANSIT"
+
     def update(self, data):
         """Update from passed-in nav data."""
         self.system = System.objects.get(symbol=data["systemSymbol"])
@@ -424,6 +425,9 @@ class Ship(models.Model):
 
     def __str__(self):
         return f"{self.symbol} ({self.frame['name']})"
+
+    def get_absolute_url(self):
+        return reverse("ship_detail", kwargs={"pk": self.pk})
 
     @property
     @display(description="frame")
@@ -1126,16 +1130,22 @@ class Market(models.Model):
     @property
     @display(description="exports")
     def exports_display(self):
+        if not self.exports.exists():
+            return None
         return ", ".join([exp.name for exp in self.exports.all()])
 
     @property
     @display(description="imports")
     def imports_display(self):
+        if not self.imports.exists():
+            return None
         return ", ".join([imp.name for imp in self.imports.all()])
 
     @property
     @display(description="exchange")
     def exchange_display(self):
+        if not self.exchange.exists():
+            return None
         return ", ".join([ex.name for ex in self.exchange.all()])
 
     def update(self, data):
@@ -1473,7 +1483,7 @@ class ShipyardShip(models.Model):
     crew = models.JSONField(default=dict)
 
     def __str__(self):
-        return f"{self.name} ({self.get_type_display()})"
+        return self.name
 
 
 class ShipyardTransaction(models.Model):

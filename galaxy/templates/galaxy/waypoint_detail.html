@@ -22,12 +22,24 @@
             </svg>
         </div>
         <div class="col-md-8">
-            <div>{{ waypoint.type_display }}</div>
+            {% if waypoint.shipnavs.exists %}
+            <div>Ships:
+                <ul>
+                    {% for nav in waypoint.shipnavs.all %}
+                    <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
             {% if waypoint.is_market %}
-            <div>Market: {{ waypoint.market }}</div>
+            <div>
+                Imports: {{ waypoint.market.imports_display }}<br>
+                Exports: {{ waypoint.market.exports_display|default_if_none:"none" }}<br>
+                Exchange: {{ waypoint.market.exchange_display }}
+            </div>
             {% endif %}
             {% if waypoint.is_shipyard %}
-            <div>Shipyard: {{ waypoint.shipyard }}</div>
+            <div>Shipyard: {{ waypoint.shipyard.ships_display }}</div>
             {% endif %}
         </div>
     </div>
@@ -43,16 +55,30 @@
               width="300"
               height="200"
               xmlns="http://www.w3.org/2000/svg">
-                <circle cx="10" cy="10" r="9" fill="blue" />
+                <rect width="100%" height="100%" fill="black" />
+                <circle cx="150" cy="100" r="10" fill="blue" />
             </svg>
         </div>
         <div class="col-md-8">
-            <div>{{ orbital.type_display }}</div>
+            <h5>{{ orbital.symbol }} ({{ orbital.get_type_display|capfirst }})</h5>
+            {% if orbital.shipnavs.exists %}
+            <div>Ships:
+                <ul>
+                    {% for nav in orbital.shipnavs.all %}
+                    <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
             {% if orbital.is_market %}
-            <div>Market: {{ orbital.market }}</div>
+            <div>
+                Imports: {{ orbital.market.imports_display }}<br>
+                Exports: {{ orbital.market.exports_display }}<br>
+                Exchange: {{ orbital.market.exchange_display }}
+            </div>
             {% endif %}
             {% if orbital.is_shipyard %}
-            <div>Shipyard: {{ orbital.shipyard }}</div>
+            <div>Shipyard: {{ orbital.shipyard.ships_display }}</div>
             {% endif %}
         </div>
     </div>

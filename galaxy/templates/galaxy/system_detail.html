@@ -1,25 +1,46 @@
 {% extends "base.html" %}
 
 {% block page_content %}
-<div id="system_{{ system_symbol }}">
-    <svg style="border:1px solid green; background-color:#333; width:100%; height:100%;" viewBox="{{minx}} {{miny}} {{width}} {{height}}">
-    {% for w in waypoints %}
-        {% if w.type == "GAS_GIANT" %}
-        <circle cx="{{w.x}}" cy="{{w.y}}" r="15" fill="yellow" id="waypoint_{{w.symbol}}"></circle>
-        {% elif w.type == "PLANET" %}
-        <circle cx="{{w.x}}" cy="{{w.y}}" r="10" fill="blue" id="waypoint_{{w.symbol}}"></circle>
-        {% elif w.type == "ENGINEERED_ASTEROID" %}
-        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
-        {% elif w.type == "ASTEROID" %}
-        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
-        {% elif w.type == "ASTEROID_BASE" %}
-        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="orange" id="waypoint_{{w.symbol}}"></circle>
-        {% elif w.type == "FUEL_STATION" %}
-        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="grey" id="waypoint_{{w.symbol}}"></circle>
-        {% elif w.type == "JUMP_GATE" %}
-        <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="white" id="waypoint_{{w.symbol}}"></circle>
-        {% endif %}
-    {% endfor %}
-    </svg>
+<div class="row">
+    <div class="col">
+        <h1>System {{ system }}</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div id="system_{{ system_symbol }}">
+            <svg style="background-color:#333; width:100%; height:100%;" viewBox="{{minx}} {{miny}} {{width}} {{height}}">
+            {% for w in waypoints %}
+                {% if w.type == "GAS_GIANT" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="15" fill="yellow" id="waypoint_{{w.symbol}}"></circle>
+                {% elif w.type == "PLANET" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="10" fill="blue" id="waypoint_{{w.symbol}}"></circle>
+                {% elif w.type == "ENGINEERED_ASTEROID" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
+                {% elif w.type == "ASTEROID" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
+                {% elif w.type == "ASTEROID_BASE" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="orange" id="waypoint_{{w.symbol}}"></circle>
+                {% elif w.type == "FUEL_STATION" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="grey" id="waypoint_{{w.symbol}}"></circle>
+                {% elif w.type == "JUMP_GATE" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="white" id="waypoint_{{w.symbol}}"></circle>
+                {% endif %}
+            {% endfor %}
+            </svg>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <h1>Ships</h1>
+        {% for ship in ships %}
+        <div class="border">
+            {{ ship.symbol }}<br>
+            Frame: {{ ship.frame.name }}<br>
+            Waypoint: <a href="{% url 'waypoint_detail' pk=ship.nav.waypoint.pk %}">{{ ship.nav.waypoint }}</a><br>
+            Status: {{ ship.nav }}
+        </div>
+        {% endfor %}
+    </div>
 </div>
 {% endblock %}

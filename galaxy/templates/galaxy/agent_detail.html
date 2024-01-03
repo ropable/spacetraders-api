@@ -10,10 +10,14 @@
     <h1>Ships</h1>
     {% for ship in agent.ships.all %}
     <div class="border">
-        {{ ship.symbol }}<br>
-        Frame: {{ ship.frame.name }}<br>
-        System: <a href="{% url 'system_detail' pk=ship.pk %}">{{ ship.nav.system.symbol }}</a><br>
-        Status: {{ ship.nav }}
+        <a href="{{ ship.get_absolute_url }}">{{ ship.symbol }} ({{ ship.frame.name }})</a><br>
+        System: <a href="{% url 'system_detail' pk=ship.nav.system.pk %}">{{ ship.nav.system.symbol }}</a><br>
+        Navigation status:
+        {% if ship.nav.is_in_transit  %}
+        {{ ship.nav.get_status_display }} to {{ ship.nav.waypoint }} ({{ ship.nav.arrival_display }})<br>
+        {% else %}
+        {{ ship.nav.get_status_display }} at <a href="{{ ship.nav.waypoint.get_absolute_url }}">{{ ship.nav.waypoint }}</a><br>
+        {% endif %}
     </div>
     {% endfor %}
 </div>
