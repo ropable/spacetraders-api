@@ -72,9 +72,21 @@ class Agent(models.Model):
 
 
 class System(models.Model):
+    TYPE_CHOICES = (
+        ("NEUTRON_STAR", "neutron star"),
+        ("RED_STAR", "red star"),
+        ("ORANGE_STAR", "orange star"),
+        ("BLUE_STAR", "blue star"),
+        ("YOUNG_STAR", "young star"),
+        ("WHITE_DWARF", "white dwarf"),
+        ("BLACK_HOLE", "black hole"),
+        ("HYPERGIANT", "hypergiant"),
+        ("NEBULA", "nebula"),
+        ("UNSTABLE", "unstable"),
+    )
     symbol = models.CharField(max_length=32, unique=True)
     sector = models.CharField(max_length=32)
-    type = models.CharField(max_length=32, db_index=True)
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES, db_index=True)
     x = models.IntegerField(editable=False)
     y = models.IntegerField(editable=False)
     factions = models.ManyToManyField(Faction, blank=True)
@@ -122,9 +134,25 @@ class WaypointModifier(models.Model):
 
 
 class Waypoint(models.Model):
+    TYPE_CHOICES = (
+        ("PLANET", "planet"),
+        ("GAS_GIANT", "gas giant"),
+        ("MOON", "moon"),
+        ("ORBITAL_STATION", "orbital station"),
+        ("JUMP_GATE", "jump gate"),
+        ("ASTEROID_FIELD", "asteroid field"),
+        ("ASTEROID", "asteroid"),
+        ("ENGINEERED_ASTEROID", "engineered asteroid"),
+        ("ASTEROID_BASE", "asteroid base"),
+        ("NEBULA", "nebula"),
+        ("DEBRIS_FIELD", "debris field"),
+        ("GRAVITY_WELL", "gravity well"),
+        ("ARTIFICIAL_GRAVITY_WELL", "artificial gravity well"),
+        ("FUEL_STATION", "fuel station"),
+    )
     modified = models.DateTimeField(auto_now=True)
     symbol = models.CharField(max_length=32, unique=True)
-    type = models.CharField(max_length=32, db_index=True)
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES, db_index=True)
     system = models.ForeignKey(
         System, related_name="waypoints", on_delete=models.PROTECT, null=True, blank=True)
     x = models.IntegerField(editable=False)
@@ -141,7 +169,7 @@ class Waypoint(models.Model):
         unique_together = ("symbol", "system")
 
     def __str__(self):
-        return f"{self.symbol} ({self.type_display})"
+        return f"{self.symbol} ({self.get_type_display()})"
 
     def get_absolute_url(self):
         return reverse("waypoint_detail", kwargs={"pk": self.pk})
@@ -197,11 +225,6 @@ class Waypoint(models.Model):
         return self.symbol.split("-")[-1]
 
     @property
-    @display(description="type")
-    def type_display(self):
-        return self.type.replace("_", " ").capitalize()
-
-    @property
     @display(description="orbitals")
     def orbitals_display(self):
         return ", ".join([str(o) for o in self.orbitals.all()])
@@ -252,18 +275,29 @@ class Chart(models.Model):
 
 
 class ShipNav(models.Model):
+    STATUS_CHOICES = (
+        ("IN_TRANSIT", "in transit"),
+        ("IN_ORBIT", "in orbit"),
+        ("DOCKED", "docked"),
+    )
+    FLIGHT_MODE_CHOICES = (
+        ("DRIFT", "drift"),
+        ("STEALTH", "stealth"),
+        ("CRUISE", "cruise"),
+        ("BURN", "burn"),
+    )
     modified = models.DateTimeField(auto_now=True)
-    system = models.ForeignKey(System, on_delete=models.PROTECT, null=True, blank=True)
-    waypoint = models.ForeignKey(Waypoint, on_delete=models.PROTECT, null=True, blank=True)
+    system = models.ForeignKey(System, related_name="shipnavs", on_delete=models.PROTECT, null=True, blank=True)
+    waypoint = models.ForeignKey(Waypoint, related_name="shipnavs", on_delete=models.PROTECT, null=True, blank=True)
     route = models.JSONField(default=dict)
-    status = models.CharField(max_length=32)  # TODO: choices
-    flight_mode = models.CharField(max_length=32)  # TODO: choices
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES)
+    flight_mode = models.CharField(max_length=32, choices=FLIGHT_MODE_CHOICES)
 
     def __str__(self):
         if self.status in ["DOCKED", "IN_ORBIT"]:
-            return f"{self.status_display} at {self.waypoint}, {self.flight_mode_display} mode"
+            return f"{self.get_status_display()} at {self.waypoint}, {self.get_flight_mode_display()} mode"
         else:
-            return f"{self.status_display} to {self.waypoint}, {self.flight_mode_display} mode ({self.route['arrival']})"
+            return f"{self.get_status_display()} to {self.waypoint}, {self.get_flight_mode_display()} mode ({self.route['arrival']})"
 
     def update(self, data):
         """Update from passed-in nav data."""
@@ -273,7 +307,6 @@ class ShipNav(models.Model):
         self.status = data["status"]
         self.flight_mode = data["flightMode"]
         self.save()
-        #LOGGER.info(f"{self.ship} nav updated")
 
     def get_arrival(self):
         """Returns route.arrival as a datetime."""
@@ -327,14 +360,6 @@ class ShipNav(models.Model):
             return
 
         return round(max(1, distance) * (nav_multiplier / self.ship.engine["speed"]) + 15)
-
-    @property
-    def status_display(self):
-        return self.status.replace("_", " ").capitalize()
-
-    @property
-    def flight_mode_display(self):
-        return self.flight_mode.replace("_", " ").capitalize()
 
 
 class ShipModule(models.Model):
@@ -1022,11 +1047,16 @@ class ShipCargoItem(models.Model):
 
 
 class Contract(models.Model):
+    TYPE_CHOICES = (
+        ("PROCUREMENT", "procurement"),
+        ("TRANSPORT", "transport"),
+        ("SHUTTLE", "shuttle"),
+    )
     modified = models.DateTimeField(auto_now=True)
     agent = models.ForeignKey(Agent, on_delete=models.PROTECT)
     contract_id = models.CharField(max_length=64, unique=True)
     faction = models.ForeignKey(Faction, on_delete=models.PROTECT, null=True, blank=True)
-    type = models.CharField(max_length=32)
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES)
     terms_deadline = models.DateTimeField()
     terms_payment = models.JSONField(default=dict)
     accepted = models.BooleanField(default=False)
@@ -1218,10 +1248,14 @@ class Market(models.Model):
 
 
 class Transaction(models.Model):
+    TYPE_CHOICES = (
+        ("PURCHASE", "purchase"),
+        ("SELL", "sell"),
+    )
     market = models.ForeignKey(Market, on_delete=models.CASCADE)
     ship_symbol = models.CharField(max_length=32)
     trade_good = models.ForeignKey(TradeGood, on_delete=models.PROTECT)
-    type = models.CharField(max_length=32)
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES)
     units = models.PositiveIntegerField(default=0)
     price_per_unit = models.PositiveIntegerField(default=0)
     total_price = models.PositiveIntegerField(default=0)
@@ -1235,13 +1269,31 @@ class Transaction(models.Model):
 
 
 class MarketTradeGood(models.Model):
+    TYPE_CHOICES = (
+        ("EXPORT", "export"),
+        ("IMPORT", "import"),
+        ("EXCHANGE", "exchange"),
+    )
+    SUPPLY_CHOICES = (
+        ("SCARCE", "scarce"),
+        ("LIMITED", "limited"),
+        ("MODERATE", "moderate"),
+        ("HIGH", "high"),
+        ("ABUNDANT", "abundant"),
+    )
+    ACTIVITY_CHOICES = (
+        ("WEAK", "weak"),
+        ("GROWING", "growing"),
+        ("STRONG", "strong"),
+        ("RESTRICTED", "restricted"),
+    )
     modified = models.DateTimeField(auto_now=True)
     market = models.ForeignKey(Market, on_delete=models.CASCADE)
     trade_good = models.ForeignKey(TradeGood, on_delete=models.PROTECT)
-    type = models.CharField(max_length=32)  # TODO: choices
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES)
     trade_volume = models.PositiveIntegerField(default=0)
-    supply = models.CharField(max_length=32)
-    activity = models.CharField(max_length=32, null=True, blank=True)
+    supply = models.CharField(max_length=32, choices=SUPPLY_CHOICES)
+    activity = models.CharField(max_length=32, choices=ACTIVITY_CHOICES, null=True, blank=True)
     purchase_price = models.PositiveIntegerField(default=0)
     sell_price = models.PositiveIntegerField(default=0)
 
@@ -1391,8 +1443,22 @@ class Shipyard(models.Model):
 
 
 class ShipyardShip(models.Model):
+    TYPE_CHOICES = (
+        ("SHIP_PROBE", "probe"),
+        ("SHIP_MINING_DRONE", "mining drone"),
+        ("SHIP_SIPHON_DRONE", "siphon drone"),
+        ("SHIP_INTERCEPTOR", "interceptor"),
+        ("SHIP_LIGHT_HAULER", "light hauler"),
+        ("SHIP_COMMAND_FRIGATE", "command frigate"),
+        ("SHIP_EXPLORER", "explorer"),
+        ("SHIP_HEAVY_FREIGHTER", "heavy freighter"),
+        ("SHIP_LIGHT_SHUTTLE", "light shuttle"),
+        ("SHIP_ORE_HOUND", "ore hound"),
+        ("SHIP_REFINING_FREIGHTER", "refining freighter"),
+        ("SHIP_SURVEYOR", "surveyor"),
+    )
     shipyard = models.ForeignKey(Shipyard, related_name="ships", on_delete=models.PROTECT)
-    type = models.CharField(max_length=64, db_index=True)
+    type = models.CharField(max_length=64, choices=TYPE_CHOICES, db_index=True)
     name = models.CharField(max_length=128)
     description = models.TextField(null=True, blank=True)
     supply = models.CharField(max_length=32, null=True, blank=True)
@@ -1406,11 +1472,7 @@ class ShipyardShip(models.Model):
     crew = models.JSONField(default=dict)
 
     def __str__(self):
-        return f"{self.name} ({self.type_display})"
-
-    @property
-    def type_display(self):
-        return self.type.replace("_", " ").capitalize()
+        return f"{self.name} ({self.get_type_display()})"
 
 
 class ShipyardTransaction(models.Model):
