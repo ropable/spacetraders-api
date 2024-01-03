@@ -5,6 +5,8 @@ from .models import Agent, System, Waypoint, Ship
 
 class AgentDetail(DetailView):
     model = Agent
+    slug_field = "symbol"
+    slug_url_kwarg = "symbol"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -15,6 +17,8 @@ class AgentDetail(DetailView):
 
 class SystemDetail(DetailView):
     model = System
+    slug_field = "symbol"
+    slug_url_kwarg = "symbol"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -44,6 +48,8 @@ class SystemDetail(DetailView):
 
 class WaypointDetail(DetailView):
     model = Waypoint
+    slug_field = "symbol"
+    slug_url_kwarg = "symbol"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -55,6 +61,8 @@ class WaypointDetail(DetailView):
 
 class ShipDetail(DetailView):
     model = Ship
+    slug_field = "symbol"
+    slug_url_kwarg = "symbol"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -3,11 +3,11 @@
 {% block page_content %}
 <div id="waypoint_detail_view">
     <h1>Waypoint {{ waypoint }}</h1>
-    System: <a href="{% url 'system_detail' pk=waypoint.system.pk %}">{{ waypoint.system.symbol }}</a><br>
+    System: <a href="{{ waypoint.system.get_absolute_url }}">{{ waypoint.system.symbol }}</a><br>
     Faction: {{ waypoint.faction.name }}<br>
     Traits: {{ waypoint.traits_display|default_if_none:"none" }}<br>
     {% if waypoint.orbits %}
-    Orbits <a href="{% url 'waypoint_detail' pk=waypoint.orbits.pk %}">{{ waypoint.orbits }}</a>
+    Orbits <a href="{{ waypoint.orbits.get_absolute_url }}">{{ waypoint.orbits }}</a>
     {% endif %}
     <div class="row">
         <div class="col-md-4">

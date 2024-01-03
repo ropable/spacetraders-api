@@ -11,7 +11,7 @@
     {% for ship in agent.ships.all %}
     <div class="border">
         <a href="{{ ship.get_absolute_url }}">{{ ship.symbol }} ({{ ship.frame.name }})</a><br>
-        System: <a href="{% url 'system_detail' pk=ship.nav.system.pk %}">{{ ship.nav.system.symbol }}</a><br>
+        System: <a href="{{ ship.nav.system.get_absolute_url }}">{{ ship.nav.system.symbol }}</a><br>
         Navigation status:
         {% if ship.nav.is_in_transit  %}
         {{ ship.nav.get_status_display }} to {{ ship.nav.waypoint }} ({{ ship.nav.arrival_display }})<br>

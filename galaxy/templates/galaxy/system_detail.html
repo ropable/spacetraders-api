@@ -37,7 +37,7 @@
         <div class="border">
             {{ ship.symbol }}<br>
             Frame: {{ ship.frame.name }}<br>
-            Waypoint: <a href="{% url 'waypoint_detail' pk=ship.nav.waypoint.pk %}">{{ ship.nav.waypoint }}</a><br>
+            Waypoint: <a href="{{ ship.nav.waypoint.get_absolute_url }}">{{ ship.nav.waypoint }}</a><br>
             Status: {{ ship.nav }}
         </div>
         {% endfor %}

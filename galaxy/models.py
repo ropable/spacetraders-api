@@ -57,7 +57,7 @@ class Agent(models.Model):
         return f"{self.symbol} ({self.starting_faction})"
 
     def get_absolute_url(self):
-        return reverse("agent_detail", kwargs={"pk": self.pk})
+        return reverse("agent_detail", kwargs={"symbol": self.symbol})
 
     def update(self, data):
         """Update object from passed-in data."""
@@ -99,7 +99,7 @@ class System(models.Model):
         return f"{self.symbol} ({self.get_type_display()})"
 
     def get_absolute_url(self):
-        return reverse("system_detail", kwargs={"pk": self.pk})
+        return reverse("system_detail", kwargs={"symbol": self.symbol})
 
     @property
     def coords(self):
@@ -169,7 +169,7 @@ class Waypoint(models.Model):
         return f"{self.symbol} ({self.get_type_display()})"
 
     def get_absolute_url(self):
-        return reverse("waypoint_detail", kwargs={"pk": self.pk})
+        return reverse("waypoint_detail", kwargs={"symbol": self.symbol})
 
     def update(self, data):
         """Update object from passed-in data."""
@@ -427,7 +427,7 @@ class Ship(models.Model):
         return f"{self.symbol} ({self.frame['name']})"
 
     def get_absolute_url(self):
-        return reverse("ship_detail", kwargs={"pk": self.pk})
+        return reverse("ship_detail", kwargs={"symbol": self.symbol})
 
     @property
     @display(description="frame")
