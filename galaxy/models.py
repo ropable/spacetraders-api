@@ -105,6 +105,10 @@ class System(models.Model):
     def coords(self):
         return (self.x, self.y)
 
+    def get_stars(self):
+        """Return any star waypoints in this system."""
+        return self.waypoints.filter(type="GAS_GIANT")
+
 
 class WaypointTrait(models.Model):
     symbol = models.CharField(max_length=32, unique=True)
@@ -245,9 +249,16 @@ class Waypoint(models.Model):
             return False
 
     def distance(self, coords):
+        """Returns the distance of this waypoint from the passed-in coordinates."""
         if not isinstance(coords, tuple):
             return False
         return dist((self.x, self.y), (coords[0], coords[1]))
+
+    def orbital_radius(self):
+        """If this waypoint orbits another, return the orbital radius."""
+        if not self.orbits:
+            return None
+        return self.distance(self.orbits.coords)
 
     def traits_display(self):
         if self.traits:

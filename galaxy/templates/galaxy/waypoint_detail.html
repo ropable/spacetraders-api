@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load mathfilters %}
 
 {% block page_content %}
 <div id="waypoint_detail_view">
@@ -10,18 +11,18 @@
     Orbits <a href="{{ waypoint.orbits.get_absolute_url }}">{{ waypoint.orbits }}</a>
     {% endif %}
     <div class="row">
-        <div class="col-md-4">
-            <svg
-              version="1.1"
-              baseProfile="full"
-              width="300"
-              height="200"
-              xmlns="http://www.w3.org/2000/svg">
-                <rect width="100%" height="100%" fill="black" />
-                <circle cx="150" cy="100" r="90" fill="blue" />
+        <div class="col-md-6">
+            {% with orbitals_count=waypoint.orbitals.count %}
+            <svg style="background-color:#333; width:100%; height:100%;" viewBox="0 0 {{ orbitals_count|add:1|mul:16|add:128 }} {{ orbitals_count|add:1|mul:16|add:128 }}">
+                <circle cx="{{ orbitals_count|add:1|mul:16|add:128|mul:0.4 }}" cy="0" r="96" fill="blue" />
+                {% for orbital in waypoint.orbitals.all %}
+                <circle cx="{{ orbitals_count|add:1|mul:16|add:128|mul:0.4 }}" cy="{{ forloop.counter|mul:16|add:128 }}" r="4" fill="grey" />
+                <text x="{{ orbitals_count|add:1|mul:16|add:128|mul:0.45 }}" y="{{ forloop.counter|mul:16|add:128 }}" class="p small">{{ orbital.symbol }}</text>
+                {% endfor %}
             </svg>
+            {% endwith %}
         </div>
-        <div class="col-md-8">
+        <div class="col-md-6">
             {% if waypoint.shipnavs.exists %}
             <div>Ships:
                 <ul>

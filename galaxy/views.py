@@ -1,6 +1,6 @@
 from django.views.generic import DetailView
 
-from .models import Agent, System, Waypoint, Ship
+from .models import Agent, System, Waypoint, Ship, Market
 
 
 class AgentDetail(DetailView):
@@ -27,22 +27,18 @@ class SystemDetail(DetailView):
         context["system_symbol"] = system.symbol
         waypoints = Waypoint.objects.filter(system=system)
         star = waypoints.filter(type="GAS_GIANT").first()
+
         context["centrex"] = star.x
         context["centrey"] = star.y
-        context["waypoints"] = [
-            {
-                "symbol": wp.symbol,
-                "type": wp.type,
-                "x": wp.x,
-                "y": wp.y,
-            }
-            for wp in waypoints
-        ]
+        context["waypoints"] = waypoints
         context["minx"] = min([wp.x for wp in waypoints]) - 5
         context["miny"] = min([wp.y for wp in waypoints]) - 5
         context["width"] = max([wp.x for wp in waypoints]) + abs(context["minx"]) + 5
         context["height"] = max([wp.y for wp in waypoints]) + abs(context["miny"]) + 5
         context["ships"] = Ship.objects.filter(nav__waypoint__system=system)
+        context["markets"] = Market.objects.filter(waypoint__system=system)
+        context["asteroid_waypoints"] = ["ASTEROID", "ASTEROID_BASE", "ASTEROID_FIELD", "ENGINEERED_ASTEROID"]
+
         return context
 
 

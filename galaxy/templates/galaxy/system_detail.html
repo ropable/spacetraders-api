@@ -13,26 +13,25 @@
             <svg style="background-color:#333; width:100%; height:100%;" viewBox="{{minx}} {{miny}} {{width}} {{height}}">
             {% for w in waypoints %}
                 {% if w.type == "GAS_GIANT" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="15" fill="yellow" id="waypoint_{{w.symbol}}"></circle>
+                <circle class="waypoint_{{w.type|lower}}" cx="{{w.x}}" cy="{{w.y}}" r="15" fill="yellow" id="waypoint_{{w.symbol|lower}}"></circle>
                 {% elif w.type == "PLANET" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="10" fill="blue" id="waypoint_{{w.symbol}}"></circle>
-                {% elif w.type == "ENGINEERED_ASTEROID" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
-                {% elif w.type == "ASTEROID" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
-                {% elif w.type == "ASTEROID_BASE" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="orange" id="waypoint_{{w.symbol}}"></circle>
-                {% elif w.type == "FUEL_STATION" %}
-                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="grey" id="waypoint_{{w.symbol}}"></circle>
+                <circle class="waypoint_{{w.type|lower}}" cx="{{w.x}}" cy="{{w.y}}" r="10" fill="blue" id="waypoint_{{w.symbol|lower}}"></circle>
+                <circle cx="{{centrex}}" cy="{{centrey}}" r="{{w.orbital_radius|floatformat:"0"}}" fill="none" stroke="blue" stroke-width="2"></circle>
                 {% elif w.type == "JUMP_GATE" %}
                 <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="white" id="waypoint_{{w.symbol}}"></circle>
+                <circle cx="{{centrex}}" cy="{{centrey}}" r="{{w.orbital_radius|floatformat:"0"}}" fill="none" stroke="white" stroke-width="2"></circle>
+                {% elif w.type == "FUEL_STATION" %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="grey" id="waypoint_{{w.symbol}}"></circle>
+                <circle cx="{{centrex}}" cy="{{centrey}}" r="{{w.orbital_radius|floatformat:"0"}}" fill="none" stroke="grey" stroke-width="2"></circle>
+                {% elif w.type in asteroid_waypoints %}
+                <circle cx="{{w.x}}" cy="{{w.y}}" r="5" fill="red" id="waypoint_{{w.symbol}}"></circle>
                 {% endif %}
             {% endfor %}
             </svg>
         </div>
     </div>
     <div class="col-md-6">
-        <h1>Ships</h1>
+        <h4>Ships</h4>
         {% for ship in ships %}
         <div class="border">
             {{ ship.symbol }}<br>
@@ -43,4 +42,24 @@
         {% endfor %}
     </div>
 </div>
+
+<h4>Markets</h4>
+
+{% for market in markets %}
+<div class="row border">
+    <div class="col-md">
+        Waypoint: <a href="{{ market.waypoint.get_absolute_url}}">{{ market.waypoint.symbol }} ({{ market.waypoint.get_type_display }})</a>
+    </div>
+    <div class="col-md">
+        Exports: {{ market.exports_display }}
+    </div>
+    <div class="col-md">
+        Imports: {{ market.imports_display }}
+    </div>
+    <div class="col-md">
+        Exchange: {{ market.exchange_display }}
+    </div>
+</div>
+{% endfor %}
+
 {% endblock %}

@@ -156,6 +156,12 @@ def populate_system(client, system_symbol):
         waypoint = Waypoint.objects.get(symbol=waypoint_data["symbol"])
         waypoint.update(waypoint_data)
 
+    # Set certain waypoint types to orbit the system star.
+    star = system.get_stars().first()
+    for waypoint in Waypoint.objects.filter(system=system, type__in=["PLANET", "JUMP_GATE", "FUEL_STATION"]).exclude(orbits__isnull=False):
+        waypoint.orbits = star
+        waypoint.save()
+
 
 def set_agent(client):
     """Save the player Agent to the database.
