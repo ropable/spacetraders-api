@@ -46,7 +46,7 @@ class Faction(models.Model):
 class Agent(models.Model):
     modified = models.DateTimeField(auto_now=True)
     account_id = models.CharField(max_length=64, unique=True)
-    symbol = models.CharField(max_length=32)
+    symbol = models.CharField(max_length=32, unique=True)
     email = models.EmailField(max_length=256, null=True, blank=True)
     starting_faction = models.ForeignKey(Faction, on_delete=models.PROTECT, null=True, blank=True)
     headquarters = models.ForeignKey("Waypoint", on_delete=models.PROTECT, null=True, blank=True)
@@ -1091,6 +1091,7 @@ class Contract(models.Model):
 
 class ContractDeliverGood(models.Model):
     contract = models.ForeignKey(Contract, related_name="deliver_goods", on_delete=models.CASCADE)
+    # TODO: replace symbol with a FK to TradeGood.
     symbol = models.CharField(max_length=128)
     destination = models.ForeignKey(Waypoint, on_delete=models.PROTECT)
     units_required = models.PositiveIntegerField(default=0)
@@ -1480,7 +1481,7 @@ class ShipyardTransaction(models.Model):
     ship_symbol = models.CharField(max_length=32, null=True, blank=True)  # Deprecated in API
     ship_type = models.CharField(max_length=64)
     price = models.PositiveIntegerField(default=0)
-    agent_symbol = models.CharField(max_length=32, null=True, blank=True)  # TODO: make non-nullable when resetting migrations.
+    agent_symbol = models.CharField(max_length=32)
     timestamp = models.DateTimeField()
 
     class Meta:
