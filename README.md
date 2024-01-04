@@ -2,6 +2,12 @@
 
 Reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-space-traders-api
 
+# TODOs
+
+ - [ ] Allow cargo purchase/sale at markets
+ - [ ] A* pathing search for navigating ships
+ - [ ] Galaxy (all systems) view
+
 # Environment variables
 
     API_TOKEN
@@ -117,7 +123,6 @@ Process:
 - Refuel
 - Deliver cargo to contract
 - Check delivery terms, fulfill if required, loop to source navigate
-
 
 - [ ] Find suitable source waypoint (closest with trait)
 - [ ] Loop an action with a cooldown period

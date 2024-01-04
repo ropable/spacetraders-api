@@ -39,4 +39,25 @@
     </div>
 </div>
 {% endfor %}
+
+<h1>Ships</h1>
+{% for ship in ships %}
+<div class="row">
+    <div class="col border">
+        {{ ship.symbol }}
+    </div>
+    <div class="col border">
+        <ul>
+            {% for cargo in ship.cargo.all %}
+            <li>{{ cargo }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="col border">
+    {% for export in export_goods %}
+        <p>{{ export.trade_good }} <a href="">BUY</a></p>
+    {% endfor %}
+    </div>
+</div>
+{% endfor %}
 {% endblock %}

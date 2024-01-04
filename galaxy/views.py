@@ -25,7 +25,7 @@ class SystemDetail(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         system = self.get_object()
-        context["page_title"] = str(system)
+        context["page_title"] = f"System: {system}"
         context["system_symbol"] = system.symbol
         waypoints = Waypoint.objects.filter(system=system)
         star = waypoints.filter(type="GAS_GIANT").first()
@@ -52,7 +52,7 @@ class WaypointDetail(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         waypoint = self.get_object()
-        context["page_title"] = str(waypoint)
+        context["page_title"] = f"Waypoint: {waypoint}"
         context["waypoint"] = waypoint
         return context
 
@@ -65,7 +65,7 @@ class ShipDetail(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         ship = self.get_object()
-        context["page_title"] = str(ship)
+        context["page_title"] = f"Ship: {ship}"
         context["ship"] = ship
         context["nav"] = ship.nav
         return context
@@ -94,9 +94,10 @@ class MarketDetail(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         market = self.get_object()
-        context["page_title"] = str(market)
+        context["page_title"] = f"Market: {market}"
         context["market"] = market
         context["export_goods"] = MarketTradeGood.objects.filter(market=market, type="EXPORT")
         context["import_goods"] = MarketTradeGood.objects.filter(market=market, type="IMPORT")
         context["exchange_goods"] = MarketTradeGood.objects.filter(market=market, type="EXCHANGE")
+        context["ships"] = Ship.objects.filter(nav__waypoint=market.waypoint)
         return context

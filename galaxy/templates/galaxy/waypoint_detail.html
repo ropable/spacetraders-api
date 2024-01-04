@@ -2,27 +2,20 @@
 {% load mathfilters %}
 
 {% block page_content %}
-<h1>Waypoint {{ waypoint }}</h1>
-<div class="row">
+<h1>{{ waypoint }}</h1>
+<div class="row border">
     <div class="col-md-6">
         System: <a href="{{ waypoint.system.get_absolute_url }}">{{ waypoint.system.symbol }}</a><br>
-        Faction: {{ waypoint.faction.name }}<br>
-        Traits: {{ waypoint.traits_display|default_if_none:"none" }}<br>
         {% if waypoint.orbits %}
         Orbits <a href="{{ waypoint.orbits.get_absolute_url }}">{{ waypoint.orbits }}</a></br>
         {% endif %}
-        {% if waypoint.shipnavs.exists %}
-        Local ships:
-        <ul>
-            {% for nav in waypoint.shipnavs.all %}
-            <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+        Faction: {{ waypoint.faction.name }}<br>
+        Traits: {{ waypoint.traits_display|default_if_none:"none" }}<br>
     </div>
     <div class="col-md-6">
         {% if waypoint.is_market %}
         <div>
+            <a href="{{ waypoint.market.get_absolute_url }}">Local market conditions</a><br>
             Exports: {{ waypoint.market.exports_display|default_if_none:"none" }}<br>
             Imports: {{ waypoint.market.imports_display }}<br>
             Exchange: {{ waypoint.market.exchange_display }}
@@ -47,8 +40,13 @@
         {% endwith %}
     </div>
     <div class="col-md-6">
-        {% if waypoint.is_market %}
-
+        {% if waypoint.shipnavs.exists %}
+        Ships:
+        <ul>
+            {% for nav in waypoint.shipnavs.all %}
+            <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
+            {% endfor %}
+        </ul>
         {% endif %}
     </div>
 </div>
