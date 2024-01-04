@@ -975,13 +975,13 @@ class Ship(models.Model):
             queue.enqueue_at(arrival + timedelta(seconds=10), self.behaviour_trade, client)
         else:
             # Execute a trade from the current location.
-            trade_good_symbol, waypoint_symbol, ratio = self.nav.waypoint.market.get_best_export()
-            LOGGER.info(f"{self} purchasing {trade_good_symbol} to sell at {waypoint_symbol}")
+            trade_good_symbol, waypoint, ratio = self.nav.waypoint.market.get_best_export()
+            LOGGER.info(f"{self} purchasing {trade_good_symbol} to sell at {waypoint}")
             result = self.purchase_cargo(client, trade_good_symbol)
             if not result:
                 LOGGER.warning("Error during purchase_cargo, aborting")
                 return
-            result = self.navigate(client, waypoint_symbol)
+            result = self.navigate(client, waypoint.symbol)
             if not result:
                 LOGGER.warning("Error during navigate, aborting")
                 return
@@ -1159,6 +1159,9 @@ class Market(models.Model):
             return None
         return ", ".join([ex.name for ex in self.exchange.all()])
 
+    def get_absolute_url(self):
+        return reverse("market_detail", kwargs={"symbol": self.waypoint.symbol})
+
     def update(self, data):
         """Update from passed-in data."""
         for imp in data["imports"]:
@@ -1319,6 +1322,7 @@ class MarketTradeGood(models.Model):
     purchase_price = models.PositiveIntegerField(default=0)
     sell_price = models.PositiveIntegerField(default=0)
 
+    # Non-API (local) fields.
     trade_matches = models.ManyToManyField("self", symmetrical=True, blank=True)
 
     class Meta:
@@ -1363,14 +1367,17 @@ class MarketTradeGood(models.Model):
 
     def get_arbitrage(self):
         """For an export trade good, return the list of purchase market waypoints, distance, spread
-        and spread/distance ratio.
+        and spread/distance ratio. Returns:
+            [
+                (<market waypoint>, <distance>, <spread>, <ratio>)
+            ]
         """
         if self.type == "EXPORT":
             arbitrage = []
             for match in self.trade_matches.all():
                 distance = int(match.market.waypoint.distance(self.market.waypoint.coords))
                 spread = match.purchase_price - self.sell_price
-                arbitrage.append((match.market.waypoint.symbol, distance, spread, round(spread / distance, 2)))
+                arbitrage.append((match.market.waypoint, distance, spread, round(spread / distance, 2)))
             return sorted(arbitrage, key=lambda x: x[3], reverse=True)
         else:
             return None

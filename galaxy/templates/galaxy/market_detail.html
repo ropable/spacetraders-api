@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load mathfilters galaxy_extras %}
+
+{% block page_content %}
+<h1>Market: {{ market }}</h1>
+
+<h1>Exports</h1>
+{% for export in export_goods %}
+<div class="row">
+    <div class="col-md border">
+        <h5>{{ export.trade_good }}</h5>
+        Trade volume: {{ export.trade_volume }}<br>
+        Supply: {{ export.get_supply_display|capfirst }}<br>
+        Activity: {{ export.get_activity_display|capfirst }}<br>
+    </div>
+    <div class="col-md border">
+        <br>
+        Sell price: {{ export.sell_price }}₡
+        <table class="table table-bordered table-striped table-sm">
+            <thead>
+                <tr>
+                    <th>Market</th>
+                    <th>Buy price</th>
+                    <th>Spread</th>
+                    <th>Distance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for match in export.trade_matches.all %}
+                <tr>
+                    <td><a href="{{ match.market.get_absolute_url }}">{{ match.market.waypoint.symbol }}</a></td>
+                    <td>{{ match.purchase_price }}₡</td>
+                    <td>{{ match.purchase_price|sub:export.sell_price }}₡</td>
+                    <td>{% distance market.waypoint match.market.waypoint as distance %}{{ distance|floatformat:"0" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
