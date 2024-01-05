@@ -20,6 +20,7 @@ django-extensions = "3.2.3"
 psycopg2 = "2.9.9"
 django-rq = "2.9.0"
 django-mathfilters = "1.0.0"
+gunicorn = "^21.2.0"
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.13.2"
