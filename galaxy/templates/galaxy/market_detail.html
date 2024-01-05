@@ -4,18 +4,17 @@
 {% block page_content %}
 <h1>Market: {{ market }}</h1>
 
-<h1>Exports</h1>
+<h4>Exports</h4>
 {% for export in export_goods %}
 <div class="row">
     <div class="col-md border">
-        <h5>{{ export.trade_good }}</h5>
+        <h5>{{ export.trade_good }} ({{ export.sell_price }}₡ / unit)</h5>
         Trade volume: {{ export.trade_volume }}<br>
         Supply: {{ export.get_supply_display|capfirst }}<br>
         Activity: {{ export.get_activity_display|capfirst }}<br>
     </div>
     <div class="col-md border">
-        <br>
-        Sell price: {{ export.sell_price }}₡
+        Importers:<br>
         <table class="table table-bordered table-striped table-sm">
             <thead>
                 <tr>
@@ -29,8 +28,8 @@
                 {% for match in export.trade_matches.all %}
                 <tr>
                     <td><a href="{{ match.market.get_absolute_url }}">{{ match.market.waypoint.symbol }}</a></td>
-                    <td>{{ match.purchase_price }}₡</td>
-                    <td>{{ match.purchase_price|sub:export.sell_price }}₡</td>
+                    <td>{{ match.purchase_price }}₡ / unit</td>
+                    <td>{{ match.purchase_price|sub:export.sell_price }}₡ / unit</td>
                     <td>{% distance market.waypoint match.market.waypoint as distance %}{{ distance|floatformat:"0" }}</td>
                 </tr>
                 {% endfor %}
@@ -40,13 +39,13 @@
 </div>
 {% endfor %}
 
-<h1>Ships</h1>
+<h4>Ships</h4>
+{% if ships.exists %}
 {% for ship in ships %}
+<p>{{ ship.symbol }} ({{ ship.nav.get_status_display }})</p>
 <div class="row">
     <div class="col border">
-        {{ ship.symbol }}
-    </div>
-    <div class="col border">
+        <h5>Sell cargo</h5>
         <ul>
             {% for cargo in ship.cargo.all %}
             <li>{{ cargo }}</li>
@@ -54,10 +53,28 @@
         </ul>
     </div>
     <div class="col border">
-    {% for export in export_goods %}
-        <p>{{ export.trade_good }} <a href="">BUY</a></p>
-    {% endfor %}
+        <h5>Purchase cargo</h5>
+        {% if ship.get_available_capacity > 0 %}
+        {% for export in export_goods %}
+        <div>
+            <form id="form_id_{{ export.trade_good.symbol|lower }}" class="row row-cols-md-auto g-3 align-items-center" method="post" action="{% url 'ship_purchase_cargo' symbol=ship.symbol %}">
+                {% csrf_token %}
+                <input type="text" class="d-none" name="symbol" value="{{ export.trade_good.symbol }}">
+                <div class="input-group mb-3">
+                    <div class="input-group-text">{{ export.trade_good.name }}</div>
+                    <input type="number" class="form-control" name="units" min="1" max="{{ ship.get_available_capacity }}" placeholder="{{ ship.get_available_capacity }}">
+                    <button disabled type="submit" class="btn btn-outline-primary" value="purchase">Buy</button>
+                </div>
+            </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        Cargo capacity full
+        {% endif %}
     </div>
 </div>
 {% endfor %}
+{% else %}
+None
+{% endif %}
 {% endblock %}

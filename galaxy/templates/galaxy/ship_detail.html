@@ -10,11 +10,63 @@
     {% else %}
     {{ nav.get_status_display }} at <a href="{{ nav.waypoint.get_absolute_url }}">{{ nav.waypoint }}</a><br>
     {% endif %}
+    Flight mode: {{ nav.get_flight_mode_display|capfirst }}<br>
 
     <div class="row">
-        <div class="border">
+        <div class="col-md-6 border">
             <h4>Frame</h4>
-            {{ ship.frame.name }}
+            {{ ship.frame.name }}: {{ ship.frame.description }}<br>
+            Condition: {{ ship.frame.condition }}
+        </div>
+        <div class="col-md-6 border">
+            <h4>Crew</h4>
+            Number: {{ ship.crew.current }} / {{ ship.crew.capacity }}<br>
+            Wages: {{ ship.crew.wages }}<br>
+            Morale: {{ ship.crew.morale }}<br>
+            Rotation: {{ ship.crew.rotation }}<br>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 border">
+            <h4>Modules ({{ ship.modules.count }} / {{ ship.frame.moduleSlots }})</h4>
+            <ul>
+                {% for module in ship.modules.all %}
+                <li><strong>{{ module.name }}</strong>: {{ module.description }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="col-md-6 border">
+            <h4>Mounts ({{ ship.mounts.count }} / {{ ship.frame.mountingPoints }})</h4>
+            <ul>
+                {% for mount in ship.mounts.all %}
+                <li><strong>{{ mount.name }}</strong>: {{ mount.description }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 border">
+            <h4>Reactor</h4>
+        </div>
+        <div class="col-md-6 border">
+            <h4>Engine</h4>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col border">
+            <h4>Cargo</h4>
+            {% if ship.cargo.exists %}
+            <ul>
+                {% for cargo in ship.cargo.all %}
+                <li>{{ cargo.type }} ({{ cargo.units }} units)</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            None
+            {% endif %}
         </div>
     </div>
 </div>

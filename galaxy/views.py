@@ -1,7 +1,9 @@
-from django.http import Http404
+from django.contrib import messages
+from django.http import Http404, HttpResponseRedirect
 from django.utils.translation import gettext as _
-from django.views.generic import DetailView
+from django.views.generic import DetailView, View
 
+from spacetraders import Client
 from .models import Agent, System, Waypoint, Ship, Market, MarketTradeGood
 
 
@@ -69,6 +71,24 @@ class ShipDetail(DetailView):
         context["ship"] = ship
         context["nav"] = ship.nav
         return context
+
+
+class ShipPurchaseCargo(View):
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kargs):
+        client = Client()
+        ship = Ship.objects.get(symbol=self.kwargs.get("symbol"))
+        trade_good = request.POST.get("symbol")
+        units = int(request.POST.get("units"))
+        msg = ship.purchase_cargo(client, trade_good, units)
+        if not msg:
+            messages.warning(request, "Purchase of {units} units of {trade_good} unsuccessful")
+        else:
+            messages.success(request, msg)
+        # Redirect to the market detail view of the ship.
+        return HttpResponseRedirect(ship.nav.waypoint.market.get_absolute_url())
 
 
 class MarketDetail(DetailView):

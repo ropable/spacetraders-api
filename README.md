@@ -4,7 +4,8 @@ Reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-spa
 
 # TODOs
 
- - [ ] Allow cargo purchase/sale at markets
+ - [ ] Allow ship navigation between waypoints (GUI)
+ - [ ] Allow cargo purchase/sale at markets (GUI)
  - [ ] A* pathing search for navigating ships
  - [ ] Galaxy (all systems) view
 

@@ -673,6 +673,9 @@ class Ship(models.Model):
 
         #LOGGER.info(f"{self} cargo updated")
 
+    def get_available_capacity(self):
+        return self.cargo_capacity - self.cargo_units
+
     def purchase_cargo(self, client, trade_good: str, units: int = None):
         if not self.is_docked:
             self.dock(client)
@@ -682,12 +685,11 @@ class Ship(models.Model):
         if not units:
             market = self.nav.waypoint.market
             market_trade_good = MarketTradeGood.objects.get(market=market, trade_good=TradeGood.objects.get(symbol=trade_good))
-            available_capacity = self.cargo_capacity - self.cargo_units
             # If the available volume on the market is less than our ship's available capacity, use that.
-            if market_trade_good.trade_volume < available_capacity:
+            if market_trade_good.trade_volume < self.get_available_capacity():
                 units = market_trade_good.trade_volume
             else:
-                units = available_capacity
+                units = self.get_available_capacity()
 
         data = client.purchase_cargo(self.symbol, trade_good, units)
         if "error" in data:
