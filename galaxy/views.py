@@ -74,7 +74,7 @@ class ShipDetail(DetailView):
 
 
 class ShipPurchaseCargo(View):
-
+    """POST-only view to allow a ship to purchase cargo."""
     http_method_names = ["post"]
 
     def post(self, request, *args, **kargs):
@@ -84,7 +84,25 @@ class ShipPurchaseCargo(View):
         units = int(request.POST.get("units"))
         msg = ship.purchase_cargo(client, trade_good, units)
         if not msg:
-            messages.warning(request, "Purchase of {units} units of {trade_good} unsuccessful")
+            messages.warning(request, f"Purchase of {units} units of {trade_good} unsuccessful")
+        else:
+            messages.success(request, msg)
+        # Redirect to the market detail view of the ship.
+        return HttpResponseRedirect(ship.nav.waypoint.market.get_absolute_url())
+
+
+class ShipNavigate(View):
+    """POST-only view to allow a ship to navigate to another waypoint."""
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kargs):
+        client = Client()
+        ship = Ship.objects.get(symbol=self.kwargs.get("symbol"))
+        waypoint = request.POST.get("waypoint")
+
+        msg = ship.navigate(client, waypoint)
+        if not msg:
+            messages.warning(request, f"{ship} navigation to {waypoint} unsuccessful")
         else:
             messages.success(request, msg)
         # Redirect to the market detail view of the ship.

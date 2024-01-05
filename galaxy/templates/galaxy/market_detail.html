@@ -2,7 +2,8 @@
 {% load mathfilters galaxy_extras %}
 
 {% block page_content %}
-<h1>Market: {{ market }}</h1>
+<h1>Market: <a href="{{ market.waypoint.get_absolute_url }}">{{ market }}</a></h1>
+<p>System: <a href="{{ market.waypoint.system.get_absolute_url }}">{{ market.waypoint.system }}</a></p>
 
 <h4>Exports</h4>
 {% for export in export_goods %}
@@ -42,7 +43,26 @@
 <h4>Ships</h4>
 {% if ships.exists %}
 {% for ship in ships %}
-<p>{{ ship.symbol }} ({{ ship.nav.get_status_display }})</p>
+{% if not ship.is_in_transit %}
+<div class="row">
+    <div class="col-md-6">
+        <form id="form_navigate_{{ ship.symbol|lower }}" class="row row-cols-md-auto g-3 align-items-center" method="post" action="{% url 'ship_navigate' symbol=ship.symbol %}">
+            {% csrf_token %}
+            <div class="input-group mb-3">
+                <div class="input-group-text">{{ ship.symbol }} ({{ ship.nav.get_status_display }})</div>
+                <select class="form-select form-select-sm" name="waypoint">
+                    <option disabled selected>Choose waypoint</option>
+                    {% for waypoint in ship.get_navigate_waypoints %}
+                    <option value="{{ waypoint.symbol }}">{{ waypoint }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-outline-primary" value="Navigate">Navigate</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     <div class="col border">
         <h5>Sell cargo</h5>
@@ -57,13 +77,13 @@
         {% if ship.get_available_capacity > 0 %}
         {% for export in export_goods %}
         <div>
-            <form id="form_id_{{ export.trade_good.symbol|lower }}" class="row row-cols-md-auto g-3 align-items-center" method="post" action="{% url 'ship_purchase_cargo' symbol=ship.symbol %}">
+            <form id="form_purchase_{{ export.trade_good.symbol|lower }}" class="row row-cols-md-auto g-3 align-items-center" method="post" action="{% url 'ship_purchase_cargo' symbol=ship.symbol %}">
                 {% csrf_token %}
                 <input type="text" class="d-none" name="symbol" value="{{ export.trade_good.symbol }}">
                 <div class="input-group mb-3">
                     <div class="input-group-text">{{ export.trade_good.name }}</div>
                     <input type="number" class="form-control" name="units" min="1" max="{{ ship.get_available_capacity }}" placeholder="{{ ship.get_available_capacity }}">
-                    <button disabled type="submit" class="btn btn-outline-primary" value="purchase">Buy</button>
+                    <button type="submit" class="btn btn-outline-primary" value="purchase">Buy</button>
                 </div>
             </form>
         </div>

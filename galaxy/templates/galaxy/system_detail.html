@@ -34,10 +34,25 @@
         <h4>Ships</h4>
         {% for ship in ships %}
         <div class="border">
-            {{ ship.symbol }}<br>
-            Frame: {{ ship.frame.name }}<br>
+            {{ ship }}<br>
             Waypoint: <a href="{{ ship.nav.waypoint.get_absolute_url }}">{{ ship.nav.waypoint }}</a><br>
-            Status: {{ ship.nav }}
+            Status: {{ ship.nav }}<br>
+            Fuel: {{ ship.fuel.current }} / {{ ship.fuel.capacity }}
+            {% if not ship.is_in_transit %}
+            <form id="form_navigate_{{ ship.symbol|lower }}" class="row row-cols-md-auto g-3 align-items-center" method="post" action="{% url 'ship_navigate' symbol=ship.symbol %}">
+                {% csrf_token %}
+                <div class="input-group mb-3">
+                    <div class="input-group-text">{{ ship.symbol }} ({{ ship.nav.get_status_display }})</div>
+                    <select class="form-select form-select-sm" name="waypoint">
+                        <option disabled selected>Choose waypoint</option>
+                        {% for waypoint in ship.get_navigate_waypoints %}
+                        <option value="{{ waypoint.symbol }}">{{ waypoint }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-outline-primary" value="Navigate">Navigate</button>
+                </div>
+            </form>
+            {% endif %}
         </div>
         {% endfor %}
     </div>

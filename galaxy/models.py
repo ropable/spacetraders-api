@@ -509,6 +509,10 @@ class Ship(models.Model):
         LOGGER.info(msg)
         return msg
 
+    def get_navigate_waypoints(self):
+        """Returns a queryset of candidate navigation destinations for this ship."""
+        return Waypoint.objects.filter(system=self.nav.waypoint.system).exclude(symbol=self.nav.waypoint.symbol)
+
     def navigate(self, client, waypoint_symbol: str):
         """Navigate this ship to the nominated waypoint.
         """

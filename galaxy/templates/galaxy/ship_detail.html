@@ -2,15 +2,20 @@
 
 {% block page_content %}
 <div id="ship_detail_view">
-    <h1>Ship {{ ship.symbol }} ({{ ship.frame.name }})</h1>
-    Agent: <a href="{{ ship.agent.get_absolute_url }}">{{ ship.agent.symbol }}</a><br>
-    Navigation status:
-    {% if nav.is_in_transit  %}
-    {{ nav.get_status_display }} to {{ nav.waypoint }} ({{ nav.arrival_display }})<br>
-    {% else %}
-    {{ nav.get_status_display }} at <a href="{{ nav.waypoint.get_absolute_url }}">{{ nav.waypoint }}</a><br>
-    {% endif %}
-    Flight mode: {{ nav.get_flight_mode_display|capfirst }}<br>
+    <div class="row">
+        <div class="col border">
+            <h1>Ship {{ ship.symbol }} ({{ ship.frame.name }})</h1>
+            Agent: <a href="{{ ship.agent.get_absolute_url }}">{{ ship.agent.symbol }}</a><br>
+            Navigation status:
+            {% if nav.is_in_transit  %}
+            {{ nav.get_status_display }} to {{ nav.waypoint }} ({{ nav.arrival_display }})<br>
+            {% else %}
+            {{ nav.get_status_display }} at <a href="{{ nav.waypoint.get_absolute_url }}">{{ nav.waypoint }}</a><br>
+            {% endif %}
+            Flight mode: {{ nav.get_flight_mode_display|capfirst }}<br>
+            Fuel: {{ ship.fuel.current }} / {{ ship.fuel.capacity }}
+        </div>
+    </div>
 
     <div class="row">
         <div class="col-md-6 border">
