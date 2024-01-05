@@ -1,22 +1,50 @@
 # SpaceTraders API
 
-Reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-space-traders-api
+API reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-space-traders-api
 
-# TODOs
+# Installation
 
- - [ ] Allow ship navigation between waypoints (GUI)
- - [ ] Allow cargo purchase/sale at markets (GUI)
- - [ ] A* pathing search for navigating ships
- - [ ] Galaxy (all systems) view
+The recommended way to set up this project for development is using
+[Poetry](https://python-poetry.org/docs/) to install and manage a virtual Python environment. With Poetry
+installed, change into the project directory and run:
+
+    poetry install
+
+To run Python commands in the virtualenv, thereafter run them like so:
+
+    poetry run python manage.py
+
+Manage new or updating project dependencies with Poetry also, like so:
+
+    poetry add newpackage==1.0
 
 # Environment variables
 
-    API_TOKEN
-    TZ
-    DEBUG
-    DATABASE_URL
+This project uses environment variables (in a `.env` file) to define application settings.
+Required settings are as follows:
 
-# Bootstrap database
+    DEBUG=True
+    TZ=Local/Timezone
+    API_TOKEN=MyAPITokenValue
+    DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
+    SECRET_KEY=ThisIsASecretKey
+
+# Running
+
+Use `runserver` or `gunicorn` to run a local copy of the application:
+
+    poetry run python manage.py runserver 0:8080
+    poetry run gunicorn spacetraders.wsgi --config gunicorn.py
+
+Run a `django-rq` worker to manage queued actions (requires Redis installed):
+
+    poetry run python manage.py rqworker --with-scheduler
+
+Run console commands manually in a shell session:
+
+    poetry run python manage.py shell_plus
+
+# Bootstrap database (server refresh)
 
 ```python
 from spacetraders import Client
@@ -43,12 +71,6 @@ client = Client()
 data = client.register_agent("new_agent")
 ```
 
-# Queue worker & scheduler
-
-```
-poetry run python manage.py rqworker --with-scheduler
-```
-
 # Frontend
 
 Stylesheets:
@@ -58,6 +80,9 @@ Stylesheets:
 - https://terminalcss.xyz/dark/
 
 # TODOs
+
+- [ ] A* pathing search for navigating ships
+- [ ] Galaxy (all systems) view
 
 ## Autonomous trading behaviour
 
