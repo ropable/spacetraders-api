@@ -34,15 +34,15 @@
         <h4>Ships</h4>
         {% for ship in ships %}
         <div class="border">
-            {{ ship }}<br>
+            <a href="{{ ship.get_absolute_url }}">{{ ship }}</a><br>
             Waypoint: <a href="{{ ship.nav.waypoint.get_absolute_url }}">{{ ship.nav.waypoint }}</a><br>
-            Status: {{ ship.nav }}<br>
-            Fuel: {{ ship.fuel.current }} / {{ ship.fuel.capacity }}
-            {% if not ship.is_in_transit %}
+            Status: {{ ship.nav.get_status_display }}{% if ship.nav.is_in_transit %}, arrives {{ ship.nav.get_arrival }}{% endif %}<br>
+            {% if not ship.nav.is_in_transit %}
             <form id="form_navigate_{{ ship.symbol|lower }}" class="row row-cols-md-auto g-3 align-items-center" method="post" action="{% url 'ship_navigate' symbol=ship.symbol %}">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.path }}">
                 <div class="input-group mb-3">
-                    <div class="input-group-text">{{ ship.symbol }} ({{ ship.nav.get_status_display }})</div>
+                    <div class="input-group-text">{{ ship.symbol }} ({{ ship.nav.get_flight_mode_display }} mode)</div>
                     <select class="form-select form-select-sm" name="waypoint">
                         <option disabled selected>Choose waypoint</option>
                         {% for waypoint in ship.get_navigate_waypoints %}
@@ -60,21 +60,24 @@
 
 <h4>Markets</h4>
 
-{% for market in markets %}
-<div class="row border">
-    <div class="col-md">
-        Waypoint: <a href="{{ market.waypoint.get_absolute_url}}">{{ market.waypoint.symbol }} ({{ market.waypoint.get_type_display }})</a>
-    </div>
-    <div class="col-md">
-        Exports: {{ market.exports_display }}
-    </div>
-    <div class="col-md">
-        Imports: {{ market.imports_display }}
-    </div>
-    <div class="col-md">
-        Exchange: {{ market.exchange_display }}
-    </div>
-</div>
-{% endfor %}
-
+<table class="table table-bordered table-striped table-sm">
+    <thead>
+        <tr>
+            <th>Waypoint</th>
+            <th>Exports</th>
+            <th>Imports</th>
+            <th>Exchange</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for market in markets %}
+        <tr>
+            <td><a href="{{ market.waypoint.get_absolute_url}}">{{ market.waypoint.symbol }} ({{ market.waypoint.get_type_display }})</a></td>
+            <td>{{ market.exports_display }}</td>
+            <td>{{ market.imports_display }}</td>
+            <td>{{ market.exchange_display }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
 {% endblock %}

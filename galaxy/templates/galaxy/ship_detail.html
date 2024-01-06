@@ -12,8 +12,25 @@
             {% else %}
             {{ nav.get_status_display }} at <a href="{{ nav.waypoint.get_absolute_url }}">{{ nav.waypoint }}</a><br>
             {% endif %}
-            Flight mode: {{ nav.get_flight_mode_display|capfirst }}<br>
-            Fuel: {{ ship.fuel.current }} / {{ ship.fuel.capacity }}
+            Fuel: {{ ship.fuel.current }} / {{ ship.fuel.capacity }}<br>
+            <div class="row">
+                <div class="col-md-6">
+                    <form id="form_flight_mode_{{ ship.symbol|lower }}" method="post" action="{% url 'ship_flight_mode' symbol=ship.symbol %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <div class="input-group mb-3 col-md-6">
+                            <div class="input-group-text">Flight mode: {{ nav.get_flight_mode_display }}</div>
+                            <select class="form-select form-select-sm" name="mode">
+                                <option disabled selected>Choose flight mode</option>
+                                {% for mode in nav.FLIGHT_MODE_CHOICES %}
+                                <option value="{{ mode.0 }}">{{ mode.1|capfirst }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-outline-primary" value="update">Update</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 

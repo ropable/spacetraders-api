@@ -15,7 +15,7 @@
     <div class="col-md-6">
         {% if waypoint.is_market %}
         <div>
-            <a href="{{ waypoint.market.get_absolute_url }}">Local market conditions</a><br>
+            <a href="{{ waypoint.market.get_absolute_url }}">Market</a><br>
             Exports: {{ waypoint.market.exports_display|default_if_none:"none" }}<br>
             Imports: {{ waypoint.market.imports_display }}<br>
             Exchange: {{ waypoint.market.exchange_display }}
@@ -31,63 +31,59 @@
     <div class="col-md-6">
         {% with orbitals_count=waypoint.orbitals.count %}
         <svg style="background-color:#333; width:100%; height:100%;" viewBox="0 0 {{ orbitals_count|add:1|mul:16|add:128 }} {{ orbitals_count|add:1|mul:16|add:128 }}">
-            <circle cx="{{ orbitals_count|add:1|mul:16|add:128|mul:0.4 }}" cy="0" r="96" fill="blue" />
+            <circle cx="{{ orbitals_count|add:1|mul:16|add:128|mul:0.4 }}" cy="0" r="96" fill="blue" stroke="lightblue" stroke-width="0.5" />
             {% for orbital in waypoint.orbitals.all %}
-            <circle cx="{{ orbitals_count|add:1|mul:16|add:128|mul:0.4 }}" cy="{{ forloop.counter|mul:16|add:128 }}" r="4" fill="grey" />
-            <text x="{{ orbitals_count|add:1|mul:16|add:128|mul:0.45 }}" y="{{ forloop.counter|mul:16|add:128 }}" class="p small">{{ orbital.symbol }}</text>
+            <circle cx="{{ orbitals_count|add:1|mul:16|add:128|mul:0.4 }}" cy="0" r="{{ forloop.counter|mul:16|add:128 }}" stroke="lightgrey" stroke-width="0.1" stroke-dasharray="1 1" fill="none" />
+            <circle cx="{{ orbitals_count|add:1|mul:16|add:128|mul:0.4 }}" cy="{{ forloop.counter|mul:16|add:128 }}" r="4" stroke="lightgrey" stroke-width="0.5" fill="grey" />
+            <text x="{{ orbitals_count|add:1|mul:16|add:128|mul:0.44 }}" y="{{ forloop.counter|mul:16|add:130 }}" font-size="0.5em" fill="lightgrey">{{ orbital.symbol }}</text>
             {% endfor %}
         </svg>
         {% endwith %}
     </div>
     <div class="col-md-6">
         {% if waypoint.shipnavs.exists %}
-        Ships:
-        <ul>
-            {% for nav in waypoint.shipnavs.all %}
-            <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-    </div>
-</div>
-{% if waypoint.orbitals.exists %}
-<h4>Orbital bodies:</h4>
-{% endif %}
-{% for orbital in waypoint.orbitals.all %}
-<div class="row">
-    <div class="col-md-4">
-        <svg
-          version="1.1"
-          baseProfile="full"
-          width="300"
-          height="200"
-          xmlns="http://www.w3.org/2000/svg">
-            <rect width="100%" height="100%" fill="black" />
-            <circle cx="150" cy="100" r="10" fill="blue" />
-        </svg>
-    </div>
-    <div class="col-md-8">
-        <h5>{{ orbital.symbol }} ({{ orbital.get_type_display|capfirst }})</h5>
-        {% if orbital.shipnavs.exists %}
-        <div>Ships:
-            <ul>
-                {% for nav in orbital.shipnavs.all %}
-                <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
-                {% endfor %}
-            </ul>
+        <div class="row">
+            <div class="col">
+                Ships:
+                <ul>
+                    {% for nav in waypoint.shipnavs.all %}
+                    <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
         {% endif %}
-        {% if orbital.is_market %}
-        <div>
-            Imports: {{ orbital.market.imports_display }}<br>
-            Exports: {{ orbital.market.exports_display }}<br>
-            Exchange: {{ orbital.market.exchange_display }}
+
+        {% if waypoint.orbitals.exists %}
+        <h4>Orbital bodies</h4>
+        {% endif %}
+        {% for orbital in waypoint.orbitals.all %}
+        <div class="row">
+            <div class="col">
+                <h5><a href="{{ orbital.get_absolute_url }}">{{ orbital.symbol }} ({{ orbital.get_type_display|capfirst }})</a></h5>
+                {% if orbital.is_market %}
+                <div>
+                    Imports: {{ orbital.market.imports_display }}<br>
+                    Exports: {{ orbital.market.exports_display }}<br>
+                    Exchange: {{ orbital.market.exchange_display }}
+                </div>
+                {% endif %}
+                {% if orbital.is_shipyard %}
+                <div>Shipyard: {{ orbital.shipyard.ships_display }}</div>
+                {% endif %}
+                {% if orbital.shipnavs.exists %}
+                <div>Ships:
+                    <ul>
+                        {% for nav in orbital.shipnavs.all %}
+                        <li><a href="{{ nav.ship.get_absolute_url }}">{{ nav.ship.symbol }} ({{ nav.get_status_display }}) - {{ nav.ship.frame.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
         </div>
-        {% endif %}
-        {% if orbital.is_shipyard %}
-        <div>Shipyard: {{ orbital.shipyard.ships_display }}</div>
-        {% endif %}
+        {% endfor %}
     </div>
 </div>
-{% endfor %}
+
 {% endblock %}

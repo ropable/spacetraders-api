@@ -81,6 +81,8 @@ Stylesheets:
 
 # TODOs
 
+- [ ] Register view for new agent
+- [ ] Login view for existing agent
 - [ ] A* pathing search for navigating ships
 - [ ] Galaxy (all systems) view
 

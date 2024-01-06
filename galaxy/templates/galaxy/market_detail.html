@@ -5,7 +5,8 @@
 <h1>Market: <a href="{{ market.waypoint.get_absolute_url }}">{{ market }}</a></h1>
 <p>System: <a href="{{ market.waypoint.system.get_absolute_url }}">{{ market.waypoint.system }}</a></p>
 
-<h4>Exports</h4>
+<h2>Exports</h2>
+{% if export_goods.exists %}
 {% for export in export_goods %}
 <div class="row">
     <div class="col-md border">
@@ -15,13 +16,12 @@
         Activity: {{ export.get_activity_display|capfirst }}<br>
     </div>
     <div class="col-md border">
-        Importers:<br>
-        <table class="table table-bordered table-striped table-sm">
+        <table class="table table-borderless table-striped table-sm">
             <thead>
                 <tr>
                     <th>Market</th>
                     <th>Buy price</th>
-                    <th>Spread</th>
+                    <th>Profit</th>
                     <th>Distance</th>
                 </tr>
             </thead>
@@ -39,8 +39,36 @@
     </div>
 </div>
 {% endfor %}
+{% else %}
+<p>No exports at this system</p>
+{% endif %}
 
-<h4>Ships</h4>
+<h2>Imports</h2>
+{% if import_goods.exists %}
+{% for import in import_goods %}
+<div class="row">
+    <div class="col-md-6 border">
+        <h5>{{ import.trade_good }} ({{ import.purchase_price }}₡ / unit)</h5>
+        Trade volume: {{ import.trade_volume }}<br>
+        Supply: {{ import.get_supply_display|capfirst }}<br>
+        Activity: {{ import.get_activity_display|capfirst }}<br>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<p>No imports at this system</p>
+{% endif %}
+
+<h2>Exchange</h2>
+{% if exchange_goods.exists %}
+{% for exchange in exchange_goods %}
+{{ exchange }}</br>
+{% endfor %}
+{% else %}
+<p>No exchange at this system</p>
+{% endif %}
+
+<h2>Ships</h2>
 {% if ships.exists %}
 {% for ship in ships %}
 {% if not ship.is_in_transit %}
@@ -48,8 +76,9 @@
     <div class="col-md-6">
         <form id="form_navigate_{{ ship.symbol|lower }}" class="row row-cols-md-auto g-3 align-items-center" method="post" action="{% url 'ship_navigate' symbol=ship.symbol %}">
             {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
             <div class="input-group mb-3">
-                <div class="input-group-text">{{ ship.symbol }} ({{ ship.nav.get_status_display }})</div>
+                <div class="input-group-text"><a href="{{ ship.get_absolute_url }}">{{ ship.symbol }} ({{ ship.nav.get_flight_mode_display }} mode)</a></div>
                 <select class="form-select form-select-sm" name="waypoint">
                     <option disabled selected>Choose waypoint</option>
                     {% for waypoint in ship.get_navigate_waypoints %}
@@ -64,16 +93,19 @@
 {% endif %}
 
 <div class="row">
-    <div class="col border">
+    <div class="col-md-6 border">
         <h5>Sell cargo</h5>
+        {% if ship.cargo.exists %}
         <ul>
             {% for cargo in ship.cargo.all %}
             <li>{{ cargo }}</li>
             {% endfor %}
         </ul>
+        {% endif %}
     </div>
-    <div class="col border">
+    <div class="col-md-6 border">
         <h5>Purchase cargo</h5>
+        {% if export_goods.exists %}
         {% if ship.get_available_capacity > 0 %}
         {% for export in export_goods %}
         <div>
@@ -91,8 +123,10 @@
         {% else %}
         Cargo capacity full
         {% endif %}
+        {% endif %}
     </div>
 </div>
+
 {% endfor %}
 {% else %}
 None
