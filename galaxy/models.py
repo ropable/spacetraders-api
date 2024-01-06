@@ -53,6 +53,10 @@ class Agent(models.Model):
     credits = models.IntegerField(default=0)
     ship_count = models.IntegerField(default=0)
 
+    # Non-API (local) fields.
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True)
+    bearer_token = models.TextField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.symbol} ({self.starting_faction})"
 
