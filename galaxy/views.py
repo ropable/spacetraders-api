@@ -1,12 +1,101 @@
 from django.contrib import messages
-from django.http import Http404, HttpResponseRedirect
+from django.contrib.auth import get_user_model, login
+from django.contrib.auth.decorators import login_required
+from django.http import Http404, HttpResponseRedirect, HttpResponse
+from django.urls import reverse
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext as _
-from django.views.generic import DetailView, View
+from django.views.generic import TemplateView, DetailView, View
 
 from spacetraders import Client
-from .models import Agent, System, Waypoint, Ship, Market, MarketTradeGood
+from .models import (
+    Faction,
+    Agent,
+    System,
+    Waypoint,
+    Ship,
+    Market,
+    MarketTradeGood,
+)
 
 
+class HomePage(TemplateView):
+    template_name = "galaxy/home_page.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["page_title"] = "SpaceTraders"
+        context["factions"] = Faction.objects.all()
+        return context
+
+    def get(self, request, *args, **kwargs):
+        # If the user is already authenticated, redrect to the Agent detail view.
+        if request.user.is_authenticated:
+            agent = request.user.agent
+            return HttpResponseRedirect(reverse("agent_detail", kwargs={"symbol": agent.symbol}))
+        return super().get(request, *args, **kwargs)
+
+
+class AgentRegister(View):
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kargs):
+        symbol = request.POST.get("symbol")
+        faction = request.POST.get("faction")
+        return HttpResponse(f"You want to register {symbol} as a member of {faction}")
+
+
+class AgentLogin(View):
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kargs):
+        # If the user is already authenticated, redrect to the Agent detail view.
+        if request.user.is_authenticated:
+            agent = request.user.agent
+            return HttpResponseRedirect(reverse("agent_detail", kwargs={"symbol": agent.symbol}))
+
+        token = request.POST.get("token")
+        client = Client(token=token)
+
+        try:
+            data = client.get_agent()
+        except:
+            # Invalid bearer token
+            messages.warning(request, "Invalid / expired bearer token")
+            return HttpResponseRedirect(reverse("home_page"))
+
+        if not Agent.objects.filter(account_id=data["accountId"]).exists():
+            agent = Agent.objects.create(
+                account_id=data["accountId"],
+                symbol=data["symbol"],
+            )
+            # TODO: properly bootstrap a new agent/user into the database:
+            #  - Starting system
+            #  - Ships
+        else:
+            agent = Agent.objects.get(account_id=data["accountId"])
+
+        starting_faction = Faction.objects.get(symbol=data["startingFaction"])
+        agent.starting_faction = starting_faction
+        agent.credits = data["credits"]
+        agent.ship_count = data["shipCount"]
+        agent.save()
+
+        User = get_user_model()
+        queryset = User.objects.filter(agent=agent)
+
+        if not queryset.exists():
+            user = User.objects.create_user(agent.symbol.lower())
+            agent.user = user
+            agent.save()
+        else:
+            user = queryset.get()
+
+        login(request, user)
+        return HttpResponseRedirect(reverse("agent_detail", kwargs={"symbol": user.agent.symbol}))
+
+
+@method_decorator(login_required, name="dispatch")
 class AgentDetail(DetailView):
     model = Agent
     slug_field = "symbol"
@@ -19,6 +108,7 @@ class AgentDetail(DetailView):
         return context
 
 
+@method_decorator(login_required, name="dispatch")
 class SystemDetail(DetailView):
     model = System
     slug_field = "symbol"
@@ -46,6 +136,7 @@ class SystemDetail(DetailView):
         return context
 
 
+@method_decorator(login_required, name="dispatch")
 class WaypointDetail(DetailView):
     model = Waypoint
     slug_field = "symbol"
@@ -59,6 +150,7 @@ class WaypointDetail(DetailView):
         return context
 
 
+@method_decorator(login_required, name="dispatch")
 class ShipDetail(DetailView):
     model = Ship
     slug_field = "symbol"
@@ -73,6 +165,7 @@ class ShipDetail(DetailView):
         return context
 
 
+@method_decorator(login_required, name="dispatch")
 class ShipPurchaseCargo(View):
     """POST-only view to allow a ship to purchase cargo."""
     http_method_names = ["post"]
@@ -90,6 +183,7 @@ class ShipPurchaseCargo(View):
         return HttpResponseRedirect(request.POST.get("next"))
 
 
+@method_decorator(login_required, name="dispatch")
 class ShipNavigate(View):
     """POST-only view to allow a ship to navigate to another waypoint."""
     http_method_names = ["post"]
@@ -107,6 +201,7 @@ class ShipNavigate(View):
         return HttpResponseRedirect(request.POST.get("next"))
 
 
+@method_decorator(login_required, name="dispatch")
 class ShipFlightMode(View):
     """POST-only view to allow a ship to navigate to another waypoint."""
     http_method_names = ["post"]
@@ -120,6 +215,7 @@ class ShipFlightMode(View):
         return HttpResponseRedirect(request.POST.get("next"))
 
 
+@method_decorator(login_required, name="dispatch")
 class MarketDetail(DetailView):
     model = Market
 

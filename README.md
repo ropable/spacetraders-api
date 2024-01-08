@@ -83,7 +83,7 @@ Stylesheets:
 
 - [ ] Register view for new agent
 - [ ] Login view for existing agent
-- [ ] A* pathing search for navigating ships
+- [ ] Breadth-first search algo for to find fastest in-system path
 - [ ] Galaxy (all systems) view
 
 ## Autonomous trading behaviour

@@ -341,22 +341,26 @@ class ShipNav(models.Model):
         else:
             return ""
 
-    def get_fuel_cost(self, coords):
-        """For the passed-in coordinates, calculate the travel fuel cost based on the distance and
-        flight mode.
+    def get_fuel_cost(self, coords: tuple, flight_mode: str = None):
+        """For the passed-in coordinates tuple and optional flight mode, calculate the travel fuel cost
+        based on the distance and flight mode. If flight mode is not passed in, assume the ship's
+        currently set flight mode.
         Reference: https://github.com/SpaceTradersAPI/api-docs/wiki/Travel-Fuel-and-Time
         """
         distance = self.waypoint.distance(coords)
-        if self.flight_mode in ["CRUISE", "STEALTH"]:
+        if not flight_mode:
+            flight_mode = self.flight_mode
+
+        if flight_mode in ["CRUISE", "STEALTH"]:
             return int(distance)
-        elif self.flight_mode == "BURN":
+        elif flight_mode == "BURN":
             return int(distance) * 2
-        elif self.flight_mode == "DRIFT":
+        elif flight_mode == "DRIFT":
             return 1
 
-        return
+        return False
 
-    def get_navigate_time(self, distance):
+    def get_navigate_time(self, distance: int, flight_mode: str = None):
         """For the passed-in distance, calculate the navigate travel time in seconds.
         Reference: https://github.com/SpaceTradersAPI/api-docs/wiki/Travel-Fuel-and-Time
         """
@@ -364,16 +368,19 @@ class ShipNav(models.Model):
         if distance <= 0:
             return
 
-        if self.flight_mode == "CRUISE":
+        if not flight_mode:
+            flight_mode = self.flight_mode
+
+        if flight_mode == "CRUISE":
             nav_multiplier = 25.0
-        elif self.flight_mode == "DRIFT":
+        elif flight_mode == "DRIFT":
             nav_multiplier = 250.0
-        elif self.flight_mode == "BURN":
+        elif flight_mode == "BURN":
             nav_multiplier = 12.5
-        elif self.flight_mode == "STEALTH":
+        elif flight_mode == "STEALTH":
             nav_multiplier = 30.0
         else:
-            return
+            return False
 
         return round(max(1, distance) * (nav_multiplier / self.ship.engine["speed"]) + 15)
 

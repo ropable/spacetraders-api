@@ -9,11 +9,15 @@ class Client(Session):
     API endpoints. Derives the authentication token from the `API_TOKEN`
     environment variable.
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, token=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.headers["Accept"] = "application/json"
         self.headers["Content-Type"] = "application/json"
-        self.headers["Authorization"] = f"Bearer {settings.API_TOKEN}"
+
+        if token is None:
+            self.headers["Authorization"] = f"Bearer {settings.API_TOKEN}"
+        else:
+            self.headers["Authorization"] = f"Bearer {token}"
 
     def get_server_status(self):
         """Get server status.
@@ -22,10 +26,10 @@ class Client(Session):
         resp.raise_for_status()
         return resp.json()
 
-    def register_agent(self, symbol: str, email: str = None, faction: str = "COSMIC"):
+    def register_agent(self, symbol: str, email: str = None, faction: str = "COSMIC", write_file: bool = True):
         """Register a new player agent and return an authentication token.
         """
-        # Remove the existing bearer token.
+        # Remove any existing bearer token.
         self.headers.pop("Authorization")
 
         data = {
@@ -40,9 +44,10 @@ class Client(Session):
         data = resp.json()["data"]
 
         self.headers["Authorization"] = f"Bearer {data['token']}"
-        token = open("BEARER_TOKEN", "w")
-        token.write(data["token"])
-        print("Token written to file")
+        if write_file:
+            token = open("BEARER_TOKEN", "w")
+            token.write(data["token"])
+            print("Token written to file")
 
         return data
 

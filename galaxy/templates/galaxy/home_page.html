@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block page_content %}
+<h1>SpaceTraders</h1>
+
+<div class="row">
+    <div class="col">
+        <h4>Register new agent</h4>
+        <p>Choose an agent name and faction to create a new account.</p>
+        <form id="form_register_agent" method="post" action="{% url 'agent_register' %}">
+            {% csrf_token %}
+            <div class="mb-3 col-md-6">
+                <label for="symbol">Name</label>
+                <input type="text" name="symbol" required minlength="3" maxlength="14">
+            </div>
+            <div class="mb-3 col-md-6">
+                <label for="faction">Faction</label>
+                <select class="form-select form-select-sm" name="faction" required>
+                    <option disabled selected>Choose faction</option>
+                    {% for faction in factions %}
+                    <option value="{{ faction.symbol }}">{{ faction.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" value="register">Register</button>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <h4>Log in existing agent</h4>
+        <p>Paste your existing bearer token to log in.</p>
+        <form id="form_log_in" method="post" action="{% url 'agent_login' %}">
+            {% csrf_token %}
+            <div class="mb-3 col-md-6">
+                <label for="token">Name</label>
+                <input type="text" name="token" required minlength="523" maxlength="523">
+            </div>
+            <button type="submit" class="btn btn-primary" value="login">Log in</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

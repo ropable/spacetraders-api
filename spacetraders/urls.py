@@ -12,5 +12,5 @@ urlpatterns = [
     path("django-rq/", include("django_rq.urls")),
     path("admin/", admin.site.urls),
     path("favicon.ico", RedirectView.as_view(url="{}favicon.png".format(settings.STATIC_URL)), name="favicon"),
-    path("", RedirectView.as_view(url="/admin")),
+    path("", RedirectView.as_view(pattern_name="home_page")),
 ]
