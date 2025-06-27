@@ -14,14 +14,13 @@ def sleep_until(arrival: datetime, buffer: int = 1):
 
 
 def infer_system_symbol(waypoint_symbol):
-    """Infer the System symbol from a passed-in Waypoint symbol.
-    """
+    """Infer the System symbol from a passed-in Waypoint symbol."""
     return "-".join(waypoint_symbol.split("-")[0:-1])
 
 
 def get_graph(paths):
     graph = defaultdict(set)
-    for (start, finish) in paths:
+    for start, finish in paths:
         graph[start].add(finish)
 
     return graph

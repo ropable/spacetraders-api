@@ -1,15 +1,15 @@
-import dj_database_url
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
+import dj_database_url
 
 # Project paths
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = str(Path(__file__).resolve().parents[1])
 PROJECT_DIR = str(Path(__file__).resolve().parents[0])
 # Add PROJECT_DIR to the system path.
-#sys.path.insert(0, PROJECT_DIR)
+# sys.path.insert(0, PROJECT_DIR)
 
 
 # Application definition
@@ -22,8 +22,9 @@ else:
 ROOT_URLCONF = "spacetraders.urls"
 WSGI_APPLICATION = "spacetraders.wsgi.application"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-API_URL = API_URL_V2 = "https://api.spacetraders.io/v2"
-API_TOKEN = os.environ.get("API_TOKEN", "PlaceholderToken")
+API_URL = "https://api.spacetraders.io/v2"
+ACCOUNT_TOKEN = os.environ.get("ACCOUNT_TOKEN", None)
+AGENT_TOKEN = os.environ.get("AGENT_TOKEN", None)
 STATIC_CONTEXT_VARS = {}
 
 INSTALLED_APPS = [
@@ -164,11 +165,8 @@ LOGGING = {
             "handlers": ["spacetraders"],
             "level": "INFO",
         },
-        "rq.worker": {
-            "handlers": ["rq_console"],
-            "level": "INFO"
-        },
-    }
+        "rq.worker": {"handlers": ["rq_console"], "level": "INFO"},
+    },
 }
 
 

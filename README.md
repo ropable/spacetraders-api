@@ -28,7 +28,8 @@ Required settings are as follows:
 
     DEBUG=True
     TZ=Local/Timezone
-    API_TOKEN=MyAPITokenValue
+    ACCOUNT_TOKEN=MyAccountTokenValue
+    AGENT_TOKEN=MyAgentTokenValue
     DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
     SECRET_KEY=ThisIsASecretKey
 
@@ -66,12 +67,13 @@ populate_shipyards(client)
 
 Register a new agent and obtain a bearer token (in addition to returning the
 token in the response, this method writes the token value out to a file).
+Requires `ACCOUNT_TOKEN` value to be present as an environment variable (`.env`).
 
 ```python
 from spacetraders import Client
 
 client = Client()
-data = client.register_agent("new_agent")
+data = client.register_agent("new_agent_name")
 ```
 
 ## Frontend

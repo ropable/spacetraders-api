@@ -1,28 +1,28 @@
 from ratelimit import limits, sleep_and_retry
-from spacetraders.utils import get_graph, depth_first_search
+
 from galaxy.models import (
     Agent,
-    Faction,
-    FactionTrait,
-    System,
-    Waypoint,
-    WaypointTrait,
-    WaypointModifier,
-    Ship,
-    ShipNav,
     Contract,
     ContractDeliverGood,
+    Faction,
+    FactionTrait,
     Market,
-    Shipyard,
     MarketTradeGood,
+    Ship,
+    ShipNav,
+    Shipyard,
+    System,
+    Waypoint,
+    WaypointModifier,
+    WaypointTrait,
 )
+from spacetraders.utils import depth_first_search, get_graph
 
 
 @sleep_and_retry
 @limits(calls=30, period=60)
 def populate_factions(client):
-    """Populate Faction instances from the server.
-    """
+    """Populate Faction instances from the server."""
     print("Downloading factions")
     factions = client.list_factions()
 
@@ -84,8 +84,7 @@ def populate_factions(client):
 @sleep_and_retry
 @limits(calls=30, period=60)
 def populate_system(client, system_symbol):
-    """Populate a given system.
-    """
+    """Populate a given system."""
     if not System.objects.filter(symbol=system_symbol).exists():
         system_data = client.get_system(system_symbol)
         system = System.objects.create(
@@ -164,8 +163,7 @@ def populate_system(client, system_symbol):
 
 
 def set_agent(client):
-    """Save the player Agent to the database.
-    """
+    """Save the player Agent to the database."""
     data = client.get_agent()
     if Faction.objects.filter(symbol=data["startingFaction"]).exists():
         starting_faction = Faction.objects.get(symbol=data["startingFaction"])
@@ -242,8 +240,7 @@ def populate_ship(client, agent, data):
 @sleep_and_retry
 @limits(calls=30, period=60)
 def populate_contracts(client):
-    """Populate Contract instances from the game server.
-    """
+    """Populate Contract instances from the game server."""
     print("Downloading contracts")
     contracts = client.list_contracts()
     agent_data = client.get_agent()
@@ -289,8 +286,7 @@ def populate_contracts(client):
 @sleep_and_retry
 @limits(calls=30, period=60)
 def populate_markets(client):
-    """Populate markets
-    """
+    """Populate markets"""
     market_waypoints = Waypoint.objects.filter(traits__in=WaypointTrait.objects.filter(symbol="MARKETPLACE"))
 
     for wp in market_waypoints:
@@ -314,10 +310,10 @@ def populate_shipyards(client):
 
 def get_trade_pairs(system_symbol: str):
     """Return the set of all export/import pairs in a given system in the format:
-        (
-            (exporter waypoint symbol, importer waypoint symbol, trade good symbol, distance, spread, trade efficiency),
-            ...
-        )
+    (
+        (exporter waypoint symbol, importer waypoint symbol, trade good symbol, distance, spread, trade efficiency),
+        ...
+    )
     """
     market_tradegoods = MarketTradeGood.objects.filter(market__waypoint__system__symbol=system_symbol)
     paths = set()
@@ -327,7 +323,16 @@ def get_trade_pairs(system_symbol: str):
                 exp.trade_matches.add(imp)
                 distance = int(exp.market.waypoint.distance(imp.market.waypoint.coords))
                 spread = imp.purchase_price - exp.sell_price
-                paths.add((exp.market.waypoint.symbol, imp.market.waypoint.symbol, exp.trade_good.symbol, distance, spread, round(spread / distance, ndigits=1)))
+                paths.add(
+                    (
+                        exp.market.waypoint.symbol,
+                        imp.market.waypoint.symbol,
+                        exp.trade_good.symbol,
+                        distance,
+                        spread,
+                        round(spread / distance, ndigits=1),
+                    )
+                )
     return sorted(paths)
 
 
