@@ -1,24 +1,27 @@
 # SpaceTraders API
 
-API reference: https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-space-traders-api
+API reference: <https://spacetraders.stoplight.io/docs/spacetraders/11f2735b75b02-space-traders-api>
 
-# Installation
+## Installation
 
-The recommended way to set up this project for development is using
-[Poetry](https://python-poetry.org/docs/) to install and manage a virtual Python environment. With Poetry
-installed, change into the project directory and run:
+Dependencies for this project are managed using [uv](https://docs.astral.sh/uv/).
+With uv installed, change into the project directory and run:
 
-    poetry install
+    uv sync
 
-To run Python commands in the virtualenv, thereafter run them like so:
+Activate the virtualenv like so:
 
-    poetry run python manage.py
+    source .venv/bin/activate
 
-Manage new or updating project dependencies with Poetry also, like so:
+To run Python commands in the activated virtualenv, thereafter run them like so:
 
-    poetry add newpackage==1.0
+    python manage.py
 
-# Environment variables
+Manage new or updated project dependencies with uv also, like so:
+
+    uv add newpackage==1.0
+
+## Environment variables
 
 This project uses environment variables (in a `.env` file) to define application settings.
 Required settings are as follows:
@@ -29,22 +32,22 @@ Required settings are as follows:
     DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME
     SECRET_KEY=ThisIsASecretKey
 
-# Running
+## Running
 
 Use `runserver` or `gunicorn` to run a local copy of the application:
 
-    poetry run python manage.py runserver 0:8080
-    poetry run gunicorn spacetraders.wsgi --config gunicorn.py
+    python manage.py runserver 0:8080
+    gunicorn spacetraders.wsgi --config gunicorn.py
 
 Run a `django-rq` worker to manage queued actions (requires Redis installed):
 
-    poetry run python manage.py rqworker --with-scheduler
+    python manage.py rqworker --with-scheduler
 
 Run console commands manually in a shell session:
 
-    poetry run python manage.py shell_plus
+    python manage.py shell_plus
 
-# Bootstrap database (server refresh)
+## Bootstrap database (server refresh)
 
 ```python
 from spacetraders import Client
@@ -59,7 +62,7 @@ populate_markets(client)
 populate_shipyards(client)
 ```
 
-# Register a new agent
+## Register a new agent
 
 Register a new agent and obtain a bearer token (in addition to returning the
 token in the response, this method writes the token value out to a file).
@@ -71,36 +74,36 @@ client = Client()
 data = client.register_agent("new_agent")
 ```
 
-# Frontend
+## Frontend
 
 Stylesheets:
 
-- https://codepen.io/dragontheory/pen/wvRRYqQ
-- https://gist.github.com/CodeMyUI/1d83fbd4904edd7021c06f8dfd0f14c9
-- https://terminalcss.xyz/dark/
+- <https://codepen.io/dragontheory/pen/wvRRYqQ>
+- <https://gist.github.com/CodeMyUI/1d83fbd4904edd7021c06f8dfd0f14c9>
+- <https://terminalcss.xyz/dark/>
 
-# TODOs
+## TODOs
 
 - [ ] Register view for new agent
 - [ ] Login view for existing agent
 - [ ] Breadth-first search algo for to find fastest in-system path
 - [ ] Galaxy (all systems) view
 
-## Autonomous trading behaviour
+### Autonomous trading behaviour
 
-- [X] Find nearest market(s) with exports
-- [X] Find export with best / most efficient spread
-- [X] Select trade good, destination, quantity
-- [X] Purchase desired quantity of trade good
-- [X] Navigate to destination
-- [X] Wait on arrival
-- [X] Sell trade good
+- [x] Find nearest market(s) with exports
+- [x] Find export with best / most efficient spread
+- [x] Select trade good, destination, quantity
+- [x] Purchase desired quantity of trade good
+- [x] Navigate to destination
+- [x] Wait on arrival
+- [x] Sell trade good
 
 - [ ] Define a series of tasks, which might have sub-tasks
 - [ ] Find the "active" task and determine what needs to be done next
 - [ ] Introduce some randomisation into how ships find an export market
 
-```
+```python
 ship = Ship.objects.first()
 
 if not ship.nav.waypoint.market.exports.all():  # No exports at this market.
@@ -155,15 +158,15 @@ Process:
 - [ ] Find suitable source waypoint (closest with trait)
 - [ ] Loop an action with a cooldown period
 
-# Snippets
+## Snippets
 
-## Find suitable waypoints for mining
+Find suitable waypoints for mining:
 
 ```python
 waypoints = [wp for wp in Waypoint.objects.all() if (wp.has_trait('COMMON_METAL_DEPOSITS') is True and wp.has_trait('SHALLOW_CRATERS'))]
 ```
 
-## Visit all of the market waypoints in the system.
+Visit all of the market waypoints in the system:
 
 ```python
 from datetime import datetime, timezone
@@ -204,7 +207,7 @@ while len(waypoints_to_visit) > 0:
     ship.refuel(client)
 ```
 
-## Find the nearest export markets to a ship
+Find the nearest export markets to a ship:
 
 ```python
 system = ship.nav.waypoint.system
@@ -213,7 +216,7 @@ export_waypoints = [(e.waypoint, e.waypoint.distance(ship.nav.waypoint.coords), 
 export_waypoints = sorted(export_waypoints, key=lambda x: x[1])
 ```
 
-## Find market export/import opportunities
+Find market export/import opportunities:
 
 ```python
 market_tradegoods = MarketTradeGood.objects.all()
@@ -228,7 +231,7 @@ for exp in market_tradegoods.filter(type="EXPORT"):
                 print(wp_ex.symbol.ljust(12), wp_ex.coords, exp.trade_good.symbol.ljust(21), '->', wp_im.symbol.ljust(12), wp_im.coords, f'{profit}/unit', '{:.1f}'.format(d))
 ```
 
-## Find the longest given trading routes
+Find the longest given trading routes:
 
 ```python
 from spacetraders.utils import get_graph, depth_first_search
@@ -241,7 +244,7 @@ for exp in market_tradegoods.filter(type="EXPORT"):
         if imp.trade_good == exp.trade_good:
             paths.add((exp.market.waypoint.symbol, wp_im.symbol))
 graph = get_graph(paths)
-starting_waypoint = "X1-BV72-D43"
+starting_waypoint = "<WAYPOINT>"
 all_paths = depth_first_search(graph, starting_waypoint)
 max_len = max(len(p) for p in all_paths)
 max_paths = [p for p in all_paths if len(p) == max_len]

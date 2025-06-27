@@ -1,32 +1,35 @@
-[tool.poetry]
+[project]
 name = "spacetraders-api"
 version = "0.1.0"
 description = "https://docs.spacetraders.io/quickstart/new-game"
-authors = ["Ashley Felton <ashley@ropable.com>"]
+authors = [{ name = "Ashley Felton", email = "ashley.felton@dbca.wa.gov.au" }]
 license = "Apache-2.0"
 readme = "README.md"
-packages = [{include = "spacetraders_api"}]
+requires-python = ">=3.13,<4.0"
+dependencies = [
+  "django[argon2]==5.2.3",
+  "psycopg[binary,pool]==3.2.9",
+  "python-dotenv==1.1.0",
+  "dj-database-url==3.0.0",
+  "django-extensions==4.1",
+  "gunicorn==23.0.0",
+  "requests>=2.32.4",
+  "ratelimit>=2.2.1",
+  "humanize>=4.12.3",
+  "django-rq>=3.0.1",
+  "django-mathfilters>=1.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-requests = "^2.30.0"
-python-dotenv = "^1.0.0"
-ratelimit = "2.2.1"
-humanize = "4.9.0"
-django = "4.2.8"
-dj-database-url = "2.1.0"
-argon2-cffi = "^23.1.0"
-django-extensions = "3.2.3"
-psycopg2 = "2.9.9"
-django-rq = "2.9.0"
-django-mathfilters = "1.0.0"
-gunicorn = "^21.2.0"
+[dependency-groups]
+dev = ["ipython>=9.3.0", "ipdb>=0.13.13"]
 
-[tool.poetry.group.dev.dependencies]
-ipython = "^8.13.2"
-black = "^23.3.0"
-ipdb = "^0.13.13"
+[tool.ruff]
+line-length = 140
+indent-width = 4
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.ruff.lint]
+ignore = ["E265", "E501", "E722"]
+
+# Reference: https://www.djlint.com/docs/configuration/
+[tool.djlint]
+profile = "django"
