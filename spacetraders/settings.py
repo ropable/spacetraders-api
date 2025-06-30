@@ -129,10 +129,12 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "verbose": {
-            "format": "%(asctime)s %(levelname)-12s %(name)-12s %(message)s",
+            "format": "{asctime} {levelname} {name} {message}",
+            "style": "{",
         },
         "rq_console": {
-            "format": "%(asctime)s %(message)s",
+            "format": "{asctime} {name} {message}",
+            "style": "{",
             "datefmt": "%H:%M:%S",
         },
     },
